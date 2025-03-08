@@ -2,34 +2,44 @@
 
 name: auto_Reserve
 
-# Controls when the action will run. Workflow runs when manually triggered using the UI
-# or API.
+# Controls when the action will run.
 on:
   schedule:
-    - cron: "59 21 * * 0,1,2,3,4" # 周一到周五每天早上5:59启动（防止github action过于高负载）
+    - cron: "0 21 * * *"  # 每天21:00启动
   workflow_dispatch:
-  
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-  
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v2
         with:
           python-version: 3.11
-      - name: install dependency
+
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          sudo apt-get install build-essential libssl-dev libffi-dev  python3-dev -y
+          sudo apt-get install build-essential libssl-dev libffi-dev python3-dev -y
           pip install cryptography requests opencv-python
 
-      - name: run script
+      - name: Wait until 22:00
+        run: |
+          current_time=$(date +%s)
+          target_time=$(date -d "today 22:00" +%s)
+          if [ $current_time -ge $target_time ]; then
+              target_time=$(date -d "tomorrow 22:00" +%s)
+          fi
+          wait_seconds=$((target_time - current_time))
+          echo "Waiting for $wait_seconds seconds until 22:00..."
+          sleep $wait_seconds
+
+      - name: Run script
         env:
           USERNAMES: ${{ secrets.USERNAMES }}
           PASSWORDS: ${{ secrets.PASSWORDS }}
         run: |
           python main.py -m debug --action
-
 
