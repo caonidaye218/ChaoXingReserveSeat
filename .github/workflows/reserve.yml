@@ -24,16 +24,16 @@ jobs:
           sudo apt-get install build-essential libssl-dev libffi-dev python3-dev -y
           pip install cryptography requests opencv-python
 
-      - name: Wait until 17:30 (Asia/Shanghai)
+      - name: Wait until 22:00 (Asia/Shanghai)
         run: |
           export TZ="Asia/Shanghai"
           current_time=$(date +%s)
-          target_time=$(date -d "today 17:30" +%s)
+          target_time=$(date -d "today 22:00" +%s)
           if [ $current_time -ge $target_time ]; then
-              target_time=$(date -d "tomorrow 17:30" +%s)
+              target_time=$(date -d "tomorrow 22:00" +%s)
           fi
           wait_seconds=$((target_time - current_time))
-          echo "Waiting for $wait_seconds seconds until 17:30 local time..."
+          echo "Waiting for $wait_seconds seconds until 22:00 local time..."
           sleep $wait_seconds
 
       - name: Run script
