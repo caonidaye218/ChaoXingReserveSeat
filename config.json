@@ -5,7 +5,7 @@
             "password": "xxxxxxx",
             "time": ["14:00", "18:00"],
             "roomid": "6913",
-            "seatid": ["056"],
+            "seatid": ["055"],
             "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         },
         {
@@ -13,7 +13,7 @@
             "password": "xxxxxxx",
             "time": ["18:00", "21:00"],
             "roomid": "6913",
-            "seatid": ["056"],
+            "seatid": ["055"],
             "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         },
         {
@@ -21,7 +21,7 @@
             "password": "xxxxxxx",
             "time": ["10:00", "14:00"],
             "roomid": "6913",
-            "seatid": ["056"],
+            "seatid": ["055"],
             "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         },
         {
