@@ -1,0 +1,41 @@
+# .github/workflows/auto_sign.yml
+
+name: auto_Sign
+
+on:
+  schedule:
+    - cron: "40 0 * * *"  # 每天UTC时间0:40启动（北京时间8:40）
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
+
+      - name: install dependency
+        run: |
+          python -m pip install --upgrade pip
+          sudo apt-get install build-essential libssl-dev libffi-dev python3-dev -y
+          pip install cryptography requests
+
+      - name: wait until 9:40 Beijing time
+        run: |
+          current_time=$(TZ='Asia/Shanghai' date +%s)
+          target_time=$(TZ='Asia/Shanghai' date -d "09:40" +%s)
+          wait_seconds=$(( target_time - current_time ))
+          if [ $wait_seconds -gt 0 ]; then
+            echo "Waiting for $wait_seconds seconds until 09:40"
+            sleep $wait_seconds
+          else
+            echo "Already past 09:40, executing immediately."
+          fi
+
+      - name: run script in sign mode
+        run: |
+          python auto_sign.py
