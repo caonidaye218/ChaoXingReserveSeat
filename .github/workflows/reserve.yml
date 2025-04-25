@@ -24,17 +24,17 @@ jobs:
           sudo apt-get install build-essential libssl-dev libffi-dev python3-dev -y
           pip install cryptography requests opencv-python
 
-      # - name: wait until 22:00 Beijing time
-      #   run: |
-      #     current_time=$(TZ='Asia/Shanghai' date +%s)
-      #     target_time=$(TZ='Asia/Shanghai' date -d "22:00" +%s)
-      #     wait_seconds=$(( target_time - current_time ))
-      #     if [ $wait_seconds -gt 0 ]; then
-      #       echo "Waiting for $wait_seconds seconds until 22:00"
-      #       sleep $wait_seconds
-      #     else
-      #       echo "Already past 22:00, executing immediately."
-      #     fi
+      - name: wait until 22:00 Beijing time
+        run: |
+          current_time=$(TZ='Asia/Shanghai' date +%s)
+          target_time=$(TZ='Asia/Shanghai' date -d "22:00" +%s)
+          wait_seconds=$(( target_time - current_time ))
+          if [ $wait_seconds -gt 0 ]; then
+            echo "Waiting for $wait_seconds seconds until 22:00"
+            sleep $wait_seconds
+          else
+            echo "Already past 22:00, executing immediately."
+          fi
 
       - name: run script in reserve mode
         env:
