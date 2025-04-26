@@ -1,75 +1,84 @@
 import requests
 import time
-import base64
-from Crypto.Cipher import AES
 
-class ChaoxingSign:
+class ChaoxingAutoSign:
     def __init__(self):
+        self.username = "18873399638"
+        self.password = "Qq114514"
         self.session = requests.Session()
-        self.username = "18873399638"  # ✅ 直接填账号
-        self.password = "Qq114514"      # ✅ 直接填密码
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1',
+        })
 
-    def encrypt(self, text):
+    def encrypt(self, input_text):
+        import base64
+        from Crypto.Cipher import AES
+
         key = "u2oh6Vu^HWe4_AES"
-        aes = AES.new(key.encode('utf-8'), AES.MODE_CBC, key.encode('utf-8'))
-        pad = lambda s: s + (AES.block_size - len(s.encode('utf-8')) % AES.block_size) * chr(AES.block_size - len(s.encode('utf-8')) % AES.block_size)
-        encrypted = aes.encrypt(pad(text).encode('utf-8'))
+        aeskey = key.encode('utf-8')
+        iv = key.encode('utf-8')
+        cipher = AES.new(aeskey, AES.MODE_CBC, iv)
+        pad = lambda s: s + (AES.block_size - len(s) % AES.block_size) * chr(AES.block_size - len(s) % AES.block_size)
+        encrypted = cipher.encrypt(pad(input_text).encode('utf-8'))
         return base64.b64encode(encrypted).decode('utf-8')
 
     def login(self):
-        url = "https://passport2.chaoxing.com/fanyalogin"
-        data = {
-            "fid": -1,
-            "uname": self.encrypt(self.username),  # ✅ 登录时加密
-            "password": self.encrypt(self.password),  # ✅ 登录时加密
-            "refer": "https://passport2.chaoxing.com/login?fid=-1&refer=https://i.chaoxing.com"
+        acc = self.encrypt(self.username)
+        pwd = self.encrypt(self.password)
+
+        login_url = "https://passport2.chaoxing.com/fanyalogin"
+        login_data = {
+            'fid': '-1',
+            'uname': acc,
+            'password': pwd,
+            'refer': 'http%3A%2F%2Foffice.chaoxing.com%2Ffront%2Fthird%2Fapps%2Fseat%2Findex',
+            't': 'true',
+            'forbidotherlogin': 0,
+            'validate': 0,
+            'doubleFactorLogin': 0,
+            'independentId': 0,
         }
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-        res = self.session.post(url, data=data, headers=headers)
-        if res.status_code == 200 and ("个人中心" in res.text or "我的学习" in res.text):
-            print("[+] 登录成功（跳转后）")
-            return True
-        else:
-            print("[-] 登录失败，请检查用户名或密码")
-            return False
+        self.session.post(login_url, data=login_data)
+        self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
+        print("[+] 登录成功，进入座位系统")
 
     def get_reserve_list(self):
-        url = "https://office.chaoxing.com/data/apps/seat/seat/reserve"
+        today = time.strftime("%Y-%m-%d", time.localtime(time.time() + 8*3600))  # 注意北京时间
+        url = "https://office.chaoxing.com/data/apps/seat/reservelist"
         params = {
-            "page": 1,
-            "size": 6
+            'indexId': 0,
+            'pageSize': 100,
+            'type': -1
         }
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-        res = self.session.get(url, params=params, headers=headers)
+        res = self.session.get(url, params=params)
         if res.status_code == 200:
-            result = res.json()
-            if result.get("data"):
-                reserve_list = result["data"].get("reserveList", [])
-                return reserve_list
-            else:
-                print("[-] 没有获取到预约记录")
+            try:
+                data = res.json()["data"]["reserveList"]
+                reserve_today = []
+                for item in data:
+                    if item.get("today", "") == today:
+                        reserve_today.append(item)
+                return reserve_today
+            except Exception as e:
+                print(f"[-] 获取预约记录失败: {e}")
                 return []
         else:
-            print("[-] 获取预约记录失败")
+            print(f"[-] 获取预约请求失败，状态码：{res.status_code}")
             return []
 
     def sign(self, rid):
-        url = "https://office.chaoxing.com/data/apps/seat/seat/sign"
-        params = {"id": rid}
-        headers = {"User-Agent": "Mozilla/5.0"}
-        res = self.session.get(url, params=params, headers=headers)
+        sign_url = f"https://office.chaoxing.com/data/apps/seat/sign?id={rid}"
+        res = self.session.get(sign_url)
         if res.status_code == 200:
-            result = res.json()
-            if result.get("msg") == "success":
-                print("[+] 签到成功")
-            else:
-                print(f"[-] 签到失败，返回信息：{result.get('msg')}")
+            try:
+                if res.json()["success"]:
+                    print(f"[+] 签到成功！预约ID：{rid}")
+                else:
+                    print(f"[-] 签到失败，返回信息：{res.json()}")
+            except Exception as e:
+                print(f"[-] 签到请求异常: {e}")
         else:
-            print("[-] 签到请求失败")
+            print(f"[-] 签到请求失败，状态码：{res.status_code}")
 
     def wait_until(self, target_time="09:40:00"):
         print(f"[+] 等待签到时间 {target_time} 中...")
@@ -82,24 +91,19 @@ class ChaoxingSign:
             time.sleep(10)
 
     def run(self):
-        if not self.login():
-            return
+        self.login()
         self.wait_until(target_time="09:40:00")
         time.sleep(2)
-        reserve_list = self.get_reserve_list()
-        if not reserve_list:
+        reserves = self.get_reserve_list()
+        if not reserves:
             print("[-] 今天没有预约记录，无法签到")
             return
-        today = time.strftime("%Y-%m-%d", time.localtime(time.time() + 8*3600))
-        for reserve in reserve_list:
-            if reserve["startTime"].startswith(today):
-                rid = reserve["id"]
-                print(f"[+] 找到今天预约的座位，rid={rid}")
-                self.sign(rid)
-                return
-        print("[-] 今天没有找到对应的预约记录")
+        target = reserves[0]
+        rid = target["id"]
+        print(f"[+] 找到预约，ID = {rid}")
+        self.sign(rid)
 
 if __name__ == "__main__":
-    cxa = ChaoxingSign()
+    cxa = ChaoxingAutoSign()
     cxa.run()
 
