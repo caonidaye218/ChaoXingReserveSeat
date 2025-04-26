@@ -82,26 +82,21 @@ def main(users, action=False):
     today_reservation_num = sum(1 for d in users if current_dayofweek in d.get('daysofweek'))
     success_list = [False] * len(users)
 
-    while True:
-        current_time = get_current_time(action)
-        if current_time > ENDTIME:
-            logging.info(f"当前时间已超过 {ENDTIME}，停止预约")
-            break
-
+    while current_time < ENDTIME:
         attempt_times += 1
+        # ！！！！每一轮都重新清空 success_list
+        success_list = [False] * len(users)
+    
         success_list = reserve_with_sessions(users, sessions, action, success_list)
         logging.info(f"尝试次数 {attempt_times}, 当前时间 {current_time}, 预约成功列表 {success_list}")
-
+    
         if sum(success_list) == today_reservation_num:
             logging.info("全部预约成功，程序结束")
-            break
+            return
+    
+        time.sleep(1)  # 马上开始下一轮
+        current_time = get_current_time(action)
 
-        fail_times += 1
-        if fail_times >= MAX_RETRY:
-            logging.error(f"连续失败超过最大次数 {MAX_RETRY} 次，程序结束")
-            break
-
-        time.sleep(2)
 
 def debug(users, action=False):
     logging.info(f"Debug Mode start")
