@@ -1,18 +1,27 @@
 import requests
 import time
+import base64
+from Crypto.Cipher import AES
 
 class ChaoxingSign:
     def __init__(self):
         self.session = requests.Session()
-        self.username = "18873399638"
-        self.password = "Qq114514"
+        self.username = "18873399638"  # ✅ 直接填账号
+        self.password = "Qq114514"      # ✅ 直接填密码
+
+    def encrypt(self, text):
+        key = "u2oh6Vu^HWe4_AES"
+        aes = AES.new(key.encode('utf-8'), AES.MODE_CBC, key.encode('utf-8'))
+        pad = lambda s: s + (AES.block_size - len(s.encode('utf-8')) % AES.block_size) * chr(AES.block_size - len(s.encode('utf-8')) % AES.block_size)
+        encrypted = aes.encrypt(pad(text).encode('utf-8'))
+        return base64.b64encode(encrypted).decode('utf-8')
 
     def login(self):
         url = "https://passport2.chaoxing.com/fanyalogin"
         data = {
             "fid": -1,
-            "uname": self.username,
-            "password": self.password,
+            "uname": self.encrypt(self.username),  # ✅ 登录时加密
+            "password": self.encrypt(self.password),  # ✅ 登录时加密
             "refer": "https://passport2.chaoxing.com/login?fid=-1&refer=https://i.chaoxing.com"
         }
         headers = {
