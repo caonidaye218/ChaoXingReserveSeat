@@ -15,7 +15,7 @@ ENDTIME = "22:03:00"
 ENABLE_SLIDER = True
 MAX_ATTEMPT = 3
 RESERVE_NEXT_DAY = True
-TARGET_TIME = "22:00:00"  # ✅ 预约时间
+TARGET_TIME = "17:00:00"  # ✅ 预约时间
 
 def wait_until(target_time):
     while True:
