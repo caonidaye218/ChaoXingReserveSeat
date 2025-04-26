@@ -99,35 +99,20 @@ class reserve:
     # solve captcha 
 
     def resolve_captcha(self):
-        logging.info(f"Start to resolve captcha token")
-        captcha_token, bg, tp = self.get_slide_captcha_data()
-        logging.info(f"Successfully get prepared captcha_token {captcha_token}")
-        logging.info(f"Captcha Image URL-small {tp}, URL-big {bg}")
-        x = self.x_distance(bg, tp)
-        logging.info(f"Successfully calculate the captcha distance {x}")
+        try:
+            captcha_token, bg, tp = self.get_slide_captcha_data()
+        except Exception as e:
+            print(f"[-] 获取验证码失败，原因：{e}，跳过本次提交")
+            return False
+    
+        if not captcha_token:
+            print("[-] 验证码token为空，跳过本次提交")
+            return False
+    
+        distance = self.solve_captcha(bg, tp)
+        validate = self.get_validate_value(captcha_token, distance)
+        return validate
 
-        params = {
-            "callback": "jQuery33109180509737430778_1716381333117",
-            "captchaId": "42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1",
-            "type": "slide",
-            "token": captcha_token,
-            "textClickArr": json.dumps([{"x": x}]),
-            "coordinate": json.dumps([]),
-            "runEnv": "10",
-            "version": "1.1.18",
-            "_": int(time.time() * 1000)
-        }
-        response = self.requests.get(
-            f'https://captcha.chaoxing.com/captcha/check/verification/result', params=params, headers=self.headers)
-        text = response.text.replace('jQuery33109180509737430778_1716381333117(', "").replace(')', "")
-        data = json.loads(text)
-        logging.info(f"Successfully resolve the captcha token {data}")
-        try: 
-           validate_val = json.loads(data["extraData"])['validate']
-           return validate_val
-        except KeyError as e:
-            logging.info("Can't load validate value. Maybe server return mistake.")
-            return ""
 
     def get_slide_captcha_data(self):
         url = "https://captcha.chaoxing.com/captcha/get/verification/image"
