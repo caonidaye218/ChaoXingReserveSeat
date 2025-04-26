@@ -3,18 +3,28 @@ import time
 import argparse
 import os
 import logging
-from utils import reserve, get_user_credentials
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-SLEEPTIME = 0.0
-ENDTIME = "10:03:00"  # 预约时间后+几分钟即可
-ENABLE_SLIDER = True
-MAX_ATTEMPT = 3
-RESERVE_NEXT_DAY = True
+from utils import reserve, get_user_credentials
 
 get_current_time = lambda action: time.strftime("%H:%M:%S", time.localtime(time.time() + 8*3600)) if action else time.strftime("%H:%M:%S", time.localtime(time.time()))
 get_current_dayofweek = lambda action: time.strftime("%A", time.localtime(time.time() + 8*3600)) if action else time.strftime("%A", time.localtime(time.time()))
+
+SLEEPTIME = 0.0
+ENDTIME = "22:03:00"
+ENABLE_SLIDER = True
+MAX_ATTEMPT = 3
+RESERVE_NEXT_DAY = True
+TARGET_TIME = "22:00:00"  # ✅ 预约时间
+
+def wait_until(target_time):
+    while True:
+        current_time = get_current_time(True)
+        if current_time >= target_time:
+            logging.info(f"到达目标时间 {target_time}，开始预约")
+            break
+        logging.info(f"当前时间 {current_time}，等待目标时间 {target_time}")
+        time.sleep(10)
 
 def login_all_users(users, usernames, passwords, action):
     sessions = []
@@ -37,14 +47,6 @@ def login_all_users(users, usernames, passwords, action):
         sessions.append(s)
 
     return sessions
-
-def wait_until(target_time):
-    while True:
-        current_time = get_current_time(True)
-        if current_time >= target_time:
-            break
-        logging.info(f"当前时间 {current_time}，等待目标时间 {target_time}")
-        time.sleep(1)
 
 def reserve_with_sessions(users, sessions, action, success_list=None):
     if success_list is None:
@@ -71,14 +73,13 @@ def main(users, action=False):
     if action:
         usernames, passwords = get_user_credentials(action)
 
-    # 1. 提前登录
+    # 1. 提前登录所有账号
     sessions = login_all_users(users, usernames, passwords, action)
 
-    # 2. 等待预约时间（10:00）
-    target_reserve_time = "10:00:00"
-    wait_until(target_reserve_time)
+    # 2. 登录完成后，等待到目标预约时间
+    wait_until(TARGET_TIME)
 
-    # 3. 到时间开始预约
+    # 3. 到点开始预约
     attempt_times = 0
     current_time = get_current_time(action)
     current_dayofweek = get_current_dayofweek(action)
@@ -91,13 +92,14 @@ def main(users, action=False):
         logging.info(f"尝试次数 {attempt_times}, 当前时间 {current_time}, 预约成功列表 {success_list}")
 
         if sum(success_list) == today_reservation_num:
-            logging.info("全部预约成功，结束程序")
+            logging.info("全部预约成功，程序结束")
             return
 
+        time.sleep(1)
         current_time = get_current_time(action)
 
 def debug(users, action=False):
-    logging.info("Debug Mode start")
+    logging.info(f"Debug Mode start")
     usernames, passwords = None, None
     if action:
         usernames, passwords = get_user_credentials(action)
