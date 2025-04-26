@@ -12,9 +12,9 @@ get_current_dayofweek = lambda action: time.strftime("%A", time.localtime(time.t
 
 SLEEPTIME = 0.0
 ENABLE_SLIDER = True
-MAX_ATTEMPT = 3
+MAX_ATTEMPT = 4
 RESERVE_NEXT_DAY = True
-TARGET_TIME = "17:00:00"  # 预约时间
+TARGET_TIME = "22:00:00"  # 预约时间
 
 def wait_until(target_time):
     while True:
