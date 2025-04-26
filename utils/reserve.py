@@ -101,11 +101,21 @@ class reserve:
     def resolve_captcha(self):
         logging.info(f"Start to resolve captcha token")
         captcha_token, bg, tp = self.get_slide_captcha_data()
+        
+        if not captcha_token or not bg or not tp:
+            logging.error(f"Skip this attempt due to failure of getting captcha data.")
+            return ""
+    
         logging.info(f"Successfully get prepared captcha_token {captcha_token}")
         logging.info(f"Captcha Image URL-small {tp}, URL-big {bg}")
-        x = self.x_distance(bg, tp)
-        logging.info(f"Successfully calculate the captcha distance {x}")
-
+    
+        try:
+            x = self.x_distance(bg, tp)
+            logging.info(f"Successfully calculate the captcha distance {x}")
+        except Exception as e:
+            logging.error(f"Error calculating x distance: {e}")
+            x = 0
+    
         params = {
             "callback": "jQuery33109180509737430778_1716381333117",
             "captchaId": "42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1",
@@ -117,17 +127,18 @@ class reserve:
             "version": "1.1.18",
             "_": int(time.time() * 1000)
         }
-        response = self.requests.get(
-            f'https://captcha.chaoxing.com/captcha/check/verification/result', params=params, headers=self.headers)
-        text = response.text.replace('jQuery33109180509737430778_1716381333117(', "").replace(')', "")
-        data = json.loads(text)
-        logging.info(f"Successfully resolve the captcha token {data}")
-        try: 
-           validate_val = json.loads(data["extraData"])['validate']
-           return validate_val
-        except KeyError as e:
-            logging.info("Can't load validate value. Maybe server return mistake.")
+        try:
+            response = self.requests.get(
+                f'https://captcha.chaoxing.com/captcha/check/verification/result', params=params, headers=self.headers, timeout=5)
+            text = response.text.replace('jQuery33109180509737430778_1716381333117(', "").replace(')', "")
+            data = json.loads(text)
+            logging.info(f"Successfully resolve the captcha token {data}")
+            validate_val = json.loads(data.get("extraData", "{}")).get('validate', "")
+            return validate_val
+        except Exception as e:
+            logging.error(f"Error while resolving captcha: {e}")
             return ""
+
 
     def get_slide_captcha_data(self):
         url = "https://captcha.chaoxing.com/captcha/get/verification/image"
@@ -146,16 +157,19 @@ class reserve:
             "d": "a",
             "b": "a"
         }
-        response = self.requests.get(url=url, params=params, headers=self.headers)
-        content = response.text
-        
-        data = content.replace("jQuery33107685004390294206_1716461324846(",
-                            ")").replace(")", "")
-        data = json.loads(data)
-        captcha_token = data["token"]
-        bg = data["imageVerificationVo"]["shadeImage"]
-        tp = data["imageVerificationVo"]["cutoutImage"]
-        return captcha_token, bg, tp
+        try:
+            response = self.requests.get(url=url, params=params, headers=self.headers, timeout=5)
+            content = response.text
+            data = content.replace("jQuery33107685004390294206_1716461324846(", "").replace(")", "")
+            data = json.loads(data)
+            captcha_token = data["token"]
+            bg = data["imageVerificationVo"]["shadeImage"]
+            tp = data["imageVerificationVo"]["cutoutImage"]
+            return captcha_token, bg, tp
+        except Exception as e:
+            logging.error(f"Error fetching captcha data: {e}")
+            return None, None, None
+
     
     def x_distance(self, bg, tp):
         import numpy as np
