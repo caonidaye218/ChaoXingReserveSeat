@@ -112,7 +112,28 @@ class reserve:
         distance = self.solve_captcha(bg, tp)
         validate = self.get_validate_value(captcha_token, distance)
         return validate
-
+        
+    def solve_captcha(self, bg_url, tp_url):
+        import cv2
+        import numpy as np
+        import requests
+    
+        bg_data = requests.get(bg_url).content
+        tp_data = requests.get(tp_url).content
+    
+        with open('bg.jpg', 'wb') as f:
+            f.write(bg_data)
+        with open('tp.png', 'wb') as f:
+            f.write(tp_data)
+    
+        bg_img = cv2.imread('bg.jpg', 0)
+        tp_img = cv2.imread('tp.png', 0)
+    
+        # 模板匹配
+        result = cv2.matchTemplate(bg_img, tp_img, cv2.TM_CCOEFF_NORMED)
+        _, _, _, max_loc = cv2.minMaxLoc(result)
+        x = max_loc[0]
+        return x
 
     def get_slide_captcha_data(self):
         url = "https://captcha.chaoxing.com/captcha/get/verification/image"
