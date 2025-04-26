@@ -3,7 +3,6 @@ import time
 import argparse
 import os
 import logging
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 from utils import reserve, get_user_credentials
@@ -74,19 +73,26 @@ def main(users, action=False):
     if action:
         usernames, passwords = get_user_credentials(action)
 
+    # 1. 提前登录所有账号
     sessions = login_all_users(users, usernames, passwords, action)
 
+    # 2. 登录完成后，等待到目标预约时间
     wait_until(TARGET_TIME)
 
+    # 3. 到点开始预约
     attempt_times = 0
-    success_list = None
     current_dayofweek = get_current_dayofweek(action)
     today_reservation_num = sum(1 for d in users if current_dayofweek in d.get('daysofweek'))
 
-    current_time = get_current_time(action)  # ← 很重要，补回来！
+    while True:
+        current_time = get_current_time(action)
+        if current_time >= ENDTIME:
+            logging.info("到达结束时间，程序结束")
+            return
 
-    while current_time < ENDTIME:
         attempt_times += 1
+        success_list = [False] * len(users)  # 每次循环重新初始化
+
         success_list = reserve_with_sessions(users, sessions, action, success_list)
         logging.info(f"尝试次数 {attempt_times}, 当前时间 {current_time}, 预约成功列表 {success_list}")
 
@@ -94,7 +100,7 @@ def main(users, action=False):
             logging.info("全部预约成功，程序结束")
             return
 
-        current_time = get_current_time(action)  # 每轮重新更新时间，继续下一轮！
+        time.sleep(1)
 
 def debug(users, action=False):
     logging.info(f"Debug Mode start")
