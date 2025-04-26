@@ -3,6 +3,7 @@ import time
 import argparse
 import os
 import logging
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 from utils import reserve, get_user_credentials
@@ -15,9 +16,7 @@ ENDTIME = "22:03:00"
 ENABLE_SLIDER = True
 MAX_ATTEMPT = 3
 RESERVE_NEXT_DAY = True
-TARGET_TIME = "17:00:00"
-
-MAX_RETRY = 10  # 最大失败重试次数
+TARGET_TIME = "17:00:00"  # ✅ 预约时间
 
 def wait_until(target_time):
     while True:
@@ -50,7 +49,10 @@ def login_all_users(users, usernames, passwords, action):
 
     return sessions
 
-def reserve_with_sessions(users, sessions, action, success_list):
+def reserve_with_sessions(users, sessions, action, success_list=None):
+    if success_list is None:
+        success_list = [False] * len(users)
+
     current_dayofweek = get_current_dayofweek(action)
     for index, user in enumerate(users):
         username, _, times, roomid, seatid, daysofweek = user.values()
@@ -77,26 +79,22 @@ def main(users, action=False):
     wait_until(TARGET_TIME)
 
     attempt_times = 0
-    fail_times = 0
+    success_list = None
     current_dayofweek = get_current_dayofweek(action)
     today_reservation_num = sum(1 for d in users if current_dayofweek in d.get('daysofweek'))
-    success_list = [False] * len(users)
+
+    current_time = get_current_time(action)  # ← 很重要，补回来！
 
     while current_time < ENDTIME:
         attempt_times += 1
-        # ！！！！每一轮都重新清空 success_list
-        success_list = [False] * len(users)
-    
         success_list = reserve_with_sessions(users, sessions, action, success_list)
         logging.info(f"尝试次数 {attempt_times}, 当前时间 {current_time}, 预约成功列表 {success_list}")
-    
+
         if sum(success_list) == today_reservation_num:
             logging.info("全部预约成功，程序结束")
             return
-    
-        time.sleep(1)  # 马上开始下一轮
-        current_time = get_current_time(action)
 
+        current_time = get_current_time(action)  # 每轮重新更新时间，继续下一轮！
 
 def debug(users, action=False):
     logging.info(f"Debug Mode start")
