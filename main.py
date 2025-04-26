@@ -15,7 +15,9 @@ ENDTIME = "22:03:00"
 ENABLE_SLIDER = True
 MAX_ATTEMPT = 3
 RESERVE_NEXT_DAY = True
-TARGET_TIME = "17:00:00"  # ✅ 预约时间
+TARGET_TIME = "17:00:00"
+
+MAX_RETRY = 10  # 最大失败重试次数
 
 def wait_until(target_time):
     while True:
@@ -48,10 +50,7 @@ def login_all_users(users, usernames, passwords, action):
 
     return sessions
 
-def reserve_with_sessions(users, sessions, action, success_list=None):
-    if success_list is None:
-        success_list = [False] * len(users)
-
+def reserve_with_sessions(users, sessions, action, success_list):
     current_dayofweek = get_current_dayofweek(action)
     for index, user in enumerate(users):
         username, _, times, roomid, seatid, daysofweek = user.values()
@@ -73,30 +72,36 @@ def main(users, action=False):
     if action:
         usernames, passwords = get_user_credentials(action)
 
-    # 1. 提前登录所有账号
     sessions = login_all_users(users, usernames, passwords, action)
 
-    # 2. 登录完成后，等待到目标预约时间
     wait_until(TARGET_TIME)
 
-    # 3. 到点开始预约
     attempt_times = 0
-    current_time = get_current_time(action)
+    fail_times = 0
     current_dayofweek = get_current_dayofweek(action)
     today_reservation_num = sum(1 for d in users if current_dayofweek in d.get('daysofweek'))
-    success_list = None
+    success_list = [False] * len(users)
 
-    while current_time < ENDTIME:
+    while True:
+        current_time = get_current_time(action)
+        if current_time > ENDTIME:
+            logging.info(f"当前时间已超过 {ENDTIME}，停止预约")
+            break
+
         attempt_times += 1
         success_list = reserve_with_sessions(users, sessions, action, success_list)
         logging.info(f"尝试次数 {attempt_times}, 当前时间 {current_time}, 预约成功列表 {success_list}")
 
         if sum(success_list) == today_reservation_num:
             logging.info("全部预约成功，程序结束")
-            return
+            break
 
-        time.sleep(1)
-        current_time = get_current_time(action)
+        fail_times += 1
+        if fail_times >= MAX_RETRY:
+            logging.error(f"连续失败超过最大次数 {MAX_RETRY} 次，程序结束")
+            break
+
+        time.sleep(2)
 
 def debug(users, action=False):
     logging.info(f"Debug Mode start")
