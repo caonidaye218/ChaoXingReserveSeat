@@ -1,13 +1,11 @@
-import os
 import requests
-import json
 import time
 
 class ChaoxingSign:
-    def __init__(self, username, password):
+    def __init__(self):
         self.session = requests.Session()
-        self.username = username
-        self.password = password
+        self.username = "18873399638"
+        self.password = "Qq114514"
 
     def login(self):
         url = "https://passport2.chaoxing.com/fanyalogin"
@@ -93,10 +91,6 @@ class ChaoxingSign:
         print("[-] 今天没有找到对应的预约记录")
 
 if __name__ == "__main__":
-    USERNAME = os.environ.get("USERNAME", "")
-    PASSWORD = os.environ.get("PASSWORD", "")
-    if not USERNAME or not PASSWORD:
-        print("[-] 请设置环境变量 USERNAME 和 PASSWORD")
-        exit(1)
-    cxa = ChaoxingSign(USERNAME, PASSWORD)
+    cxa = ChaoxingSign()
     cxa.run()
+
