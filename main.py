@@ -17,28 +17,39 @@ RESERVE_NEXT_DAY = False
 TARGET_TIME = "22:00:00"  # 预约时间
 
 
+import time
+import calendar
+import logging
+
 def wait_until(target_time):
     """
-    target_time 格式 "HH:MM:SS"，按本地+8 时区算今天的那个时刻。
-    若已过，则立即返回；否则一次 sleep 到达。
+    target_time 是北京时间的 "HH:MM:SS"，
+    本函数会算出对应的 UTC 时间，然后一次 sleep 到点。
     """
-    # 解析 target_time
+    # 拆分出北京时分秒
     h, m, s = map(int, target_time.split(':'))
-    # 现在的本地时间（秒级）
-    now = time.time()
-    # 今天 00:00:00 的时间戳
-    t0 = now - (time.localtime(now).tm_hour*3600 + time.localtime(now).tm_min*60 + time.localtime(now).tm_sec)
-    # 目标今天的时间戳
-    target_ts = t0 + h*3600 + m*60 + s
-    # 如果已经过了，就直接返回
+    # 北京 22:00 对应的 UTC 小时
+    utc_h = (h - 8) % 24
+
+    now = time.time()  # 当前 UTC 时间戳
+    # 先算出当前（北京）日期
+    bjt_now = now + 8*3600
+    bj_struct = time.gmtime(bjt_now)
+    year, mon, day = bj_struct.tm_year, bj_struct.tm_mon, bj_struct.tm_mday
+
+    # 构造目标 UTC 时间元组
+    target_tuple = (year, mon, day, utc_h, m, s, 0, 0, 0)
+    target_ts = calendar.timegm(target_tuple)
+
     if now >= target_ts:
-        logging.info(f"到达目标时间 {target_time}，立即开始")
+        logging.info(f"到达目标时间 {target_time}（北京时间），立即开始")
         return
-    # 差值秒数
+
     wait_secs = target_ts - now
-    logging.info(f"距离目标时间 {target_time} 还有 {wait_secs:.1f} 秒，sleep……")
+    logging.info(f"距离目标时间 {target_time}（北京时间）还有 {wait_secs:.1f} 秒，sleep……")
     time.sleep(wait_secs)
-    logging.info(f"到达目标时间 {target_time}，开始预约")
+    logging.info(f"到达目标时间 {target_time}（北京时间），开始预约")
+
 
 def login_all_users(users, usernames, passwords, action):
     sessions = []
