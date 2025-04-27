@@ -16,14 +16,29 @@ MAX_ATTEMPT = 4
 RESERVE_NEXT_DAY = False
 TARGET_TIME = "22:00:00"  # 预约时间
 
+
 def wait_until(target_time):
-    while True:
-        current_time = get_current_time(True)
-        if current_time >= target_time:
-            logging.info(f"到达目标时间 {target_time}，开始预约")
-            break
-        logging.info(f"当前时间 {current_time}，等待目标时间 {target_time}")
-        time.sleep(10)
+    """
+    target_time 格式 "HH:MM:SS"，按本地+8 时区算今天的那个时刻。
+    若已过，则立即返回；否则一次 sleep 到达。
+    """
+    # 解析 target_time
+    h, m, s = map(int, target_time.split(':'))
+    # 现在的本地时间（秒级）
+    now = time.time()
+    # 今天 00:00:00 的时间戳
+    t0 = now - (time.localtime(now).tm_hour*3600 + time.localtime(now).tm_min*60 + time.localtime(now).tm_sec)
+    # 目标今天的时间戳
+    target_ts = t0 + h*3600 + m*60 + s
+    # 如果已经过了，就直接返回
+    if now >= target_ts:
+        logging.info(f"到达目标时间 {target_time}，立即开始")
+        return
+    # 差值秒数
+    wait_secs = target_ts - now
+    logging.info(f"距离目标时间 {target_time} 还有 {wait_secs:.1f} 秒，sleep……")
+    time.sleep(wait_secs)
+    logging.info(f"到达目标时间 {target_time}，开始预约")
 
 def login_all_users(users, usernames, passwords, action):
     sessions = []
