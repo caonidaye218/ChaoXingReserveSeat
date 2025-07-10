@@ -7,7 +7,9 @@ class ChaoxingAutoSign:
         self.password = "chenyu123"
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) '
+                          'AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.0 '
+                          'Mobile/14E304 Safari/602.1',
         })
 
     def encrypt(self, input_text):
@@ -18,7 +20,8 @@ class ChaoxingAutoSign:
         aeskey = key.encode('utf-8')
         iv = key.encode('utf-8')
         cipher = AES.new(aeskey, AES.MODE_CBC, iv)
-        pad = lambda s: s + (AES.block_size - len(s) % AES.block_size) * chr(AES.block_size - len(s) % AES.block_size)
+        pad = lambda s: s + (AES.block_size - len(s) % AES.block_size) * \
+                        chr(AES.block_size - len(s) % AES.block_size)
         encrypted = cipher.encrypt(pad(input_text).encode('utf-8'))
         return base64.b64encode(encrypted).decode('utf-8')
 
@@ -43,7 +46,7 @@ class ChaoxingAutoSign:
         print("[+] 登录成功，进入座位系统")
 
     def get_reserve_list(self):
-        today = time.strftime("%Y-%m-%d", time.localtime(time.time() + 8*3600))  # 注意北京时间
+        today = time.strftime("%Y-%m-%d", time.localtime(time.time() + 8*3600))
         url = "https://office.chaoxing.com/data/apps/seat/reservelist"
         params = {
             'indexId': 0,
@@ -80,7 +83,7 @@ class ChaoxingAutoSign:
         else:
             print(f"[-] 签到请求失败，状态码：{res.status_code}")
 
-    def wait_until(self, target_time="09:40:00"):
+    def wait_until(self, target_time="08:40:00"):
         print(f"[+] 等待签到时间 {target_time} 中...")
         while True:
             current_time = time.strftime("%H:%M:%S", time.localtime(time.time() + 8*3600))
@@ -92,7 +95,7 @@ class ChaoxingAutoSign:
 
     def run(self):
         self.login()
-        self.wait_until(target_time="09:40:00")
+        self.wait_until(target_time="08:40:00")
         time.sleep(2)
         reserves = self.get_reserve_list()
         if not reserves:
@@ -106,4 +109,3 @@ class ChaoxingAutoSign:
 if __name__ == "__main__":
     cxa = ChaoxingAutoSign()
     cxa.run()
-
