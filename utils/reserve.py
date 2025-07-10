@@ -1,65 +1,52 @@
-from utils import AES_Encrypt, enc, generate_captcha_key
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import json
-import requests
 import re
 import time
-import logging
 import datetime
+import logging
+import requests
+from utils import AES_Encrypt, enc, generate_captcha_key
 from urllib3.exceptions import InsecureRequestWarning
 
-def get_date(day_offset: int=0):
+
+def get_date(day_offset: int = 0):
     today = datetime.datetime.now().date()
     offset_day = today + datetime.timedelta(days=day_offset)
     return offset_day.strftime("%Y-%m-%d")
 
+
 class reserve:
-    def __init__(self,
-                 sleep_time=0.2,
-                 max_attempt=50,
-                 enable_slider=False,
-                 reserve_next_day=False,
-                 max_captcha_retry=3):
+    def __init__(self, sleep_time=0.2, max_attempt=50, enable_slider=False, reserve_next_day=False):
+        # 登录与请求 URL 配置
         self.login_page = "https://passport2.chaoxing.com/mlogin?loginType=1&newversion=true&fid="
+        self.login_url = "https://passport2.chaoxing.com/fanyalogin"
         self.url = "https://office.chaoxing.com/front/third/apps/seat/code?id={}&seatNum={}"
         self.submit_url = "https://office.chaoxing.com/data/apps/seat/submit"
-        self.login_url = "https://passport2.chaoxing.com/fanyalogin"
-        self.token_pattern = re.compile("token = '(.*?)'")
-        self.headers = {
-            "Referer": "https://office.chaoxing.com/",
-            "Host": "captcha.chaoxing.com",
-            "Pragma": "no-cache",
-            "Sec-Ch-Ua": '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": '"Linux"',
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-        }
-        self.login_headers = {
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9",
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X)",
-            "X-Requested-With": "XMLHttpRequest",
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Host": "passport2.chaoxing.com"
-        }
-
+        self.requests = requests.session()
         self.sleep_time = sleep_time
         self.max_attempt = max_attempt
         self.enable_slider = enable_slider
         self.reserve_next_day = reserve_next_day
-        self.max_captcha_retry = max_captcha_retry
-
-        self.requests = requests.session()
+        
+        # HEADERS 设置
+        self.headers = {
+            "Referer": "https://office.chaoxing.com/",
+            "Host": "captcha.chaoxing.com",
+            "Pragma": 'no-cache',
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'
+        }
+        self.login_headers = {
+            "Host": "passport2.chaoxing.com",
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X)"
+        }
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
     def _get_page_token(self, url):
-        r = self.requests.get(url, verify=False)
-        m = self.token_pattern.search(r.text)
-        return m.group(1) if m else ""
+        resp = self.requests.get(url, verify=False)
+        html = resp.text
+        match = re.search("token: '(.*?)'", html)
+        return match.group(1) if match else ''
 
     def get_login_status(self):
         self.requests.headers = self.login_headers
@@ -69,148 +56,150 @@ class reserve:
         u = AES_Encrypt(username)
         p = AES_Encrypt(password)
         params = {
-            "fid": -1,
-            "uname": u,
-            "password": p,
-            "refer": "http%3A%2F%2Foffice.chaoxing.com",
-            "t": True
+            'fid': -1,
+            'uname': u,
+            'password': p,
+            'refer': 'http://office.chaoxing.com',
+            't': True
         }
-        resp = self.requests.post(self.login_url, params=params, verify=False)
-        obj = resp.json()
+        r = self.requests.post(self.login_url, params=params, verify=False)
+        obj = r.json()
         if obj.get('status'):
             logging.info(f"User {username} login successfully")
-            return True, ""
+            return True, ''
         else:
-            logging.error(f"Login failed: {obj.get('msg2')}")
+            logging.error(f"Login failed: {obj}")
             return False, obj.get('msg2', '')
-
-    def resolve_captcha(self):
-        for attempt in range(1, self.max_captcha_retry + 1):
-            logging.info(f"Captcha attempt {attempt}/{self.max_captcha_retry}")
-            token, bg, tp = self.get_slide_captcha_data()
-            if not token or not bg or not tp:
-                continue
-            try:
-                x = self.x_distance(bg, tp)
-            except Exception as e:
-                logging.error(f"Distance calc error: {e}")
-                continue
-
-            params = {
-                "callback": "jQuery_cb",
-                "captchaId": "42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1",
-                "type": "slide",
-                "token": token,
-                "textClickArr": json.dumps([{"x": x}]),
-                "_": int(time.time() * 1000)
-            }
-            try:
-                r = self.requests.get(
-                    "https://captcha.chaoxing.com/captcha/check/verification/result",
-                    params=params, headers=self.headers, timeout=5)
-                data = json.loads(r.text.strip("jQuery_cb(").rstrip(")"))
-                validate = json.loads(data.get("extraData", "{}")).get("validate", "")
-                if validate:
-                    logging.info("Captcha solved")
-                    return validate
-            except Exception as e:
-                logging.error(f"Captcha verify error: {e}")
-        logging.warning("Captcha failed all retries")
-        return ""
 
     def get_slide_captcha_data(self):
         t = int(time.time() * 1000)
-        key, token = generate_captcha_key(t)
+        ck, tk = generate_captcha_key(t)
         params = {
-            "callback": "jQuery_cb2",
-            "captchaId": "42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1",
-            "type": "slide",
-            "captchaKey": key,
-            "token": token,
-            "_": t
+            'callback': 'jQuery_cb2',
+            'captchaId': '42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1',
+            'type': 'slide',
+            'captchaKey': ck,
+            'token': tk,
+            '_': t
         }
         try:
             r = self.requests.get(
-                "https://captcha.chaoxing.com/captcha/get/verification/image",
+                'https://captcha.chaoxing.com/captcha/get/verification/image',
                 params=params,
                 headers=self.headers,
                 timeout=5)
-            raw = json.loads(r.text.strip("jQuery_cb2(").rstrip(")"))
-            # 先尝试顶级字段
-            vo = raw.get("imageVerificationVo")
-            # 如果不存在，再尝试 data.imageVerificationVo
-            if not vo and isinstance(raw.get("data"), dict):
-                vo = raw["data"].get("imageVerificationVo")
+            text = r.text
+            start = text.find('{')
+            end = text.rfind('}')
+            raw = json.loads(text[start:end+1])
+
+            # 多路径查找 imageVerificationVo
+            vo = None
+            if 'imageVerificationVo' in raw:
+                vo = raw['imageVerificationVo']
+            elif isinstance(raw.get('data'), dict) and 'imageVerificationVo' in raw['data']:
+                vo = raw['data']['imageVerificationVo']
+            elif isinstance(raw.get('data'), dict) and isinstance(raw['data'].get('result'), dict) and \
+                 'imageVerificationVo' in raw['data']['result']:
+                vo = raw['data']['result']['imageVerificationVo']
+
             if not vo:
-                raise KeyError("no imageVerificationVo in response")
-            return raw.get("token"), vo.get("shadeImage"), vo.get("cutoutImage")
+                logging.error(f"Unexpected captcha JSON: {raw}")
+                raise KeyError('no imageVerificationVo in response')
+
+            shade = vo.get('shadeImage') or vo.get('bg')
+            cutout = vo.get('cutoutImage') or vo.get('tp')
+            return raw.get('token'), shade, cutout
+
         except Exception as e:
             logging.error(f"Fetch captcha data error: {e}")
             return None, None, None
 
+    def resolve_captcha(self):
+        logging.info("Start captcha resolution")
+        for attempt in range(1, 4):
+            logging.info(f"Captcha attempt {attempt}/3")
+            c_token, bg, tp = self.get_slide_captcha_data()
+            if not c_token or not bg or not tp:
+                continue
+            try:
+                x = self.x_distance(bg, tp)
+                logging.info(f"Captcha distance: {x}")
+            except Exception as e:
+                logging.error(f"Distance calc error: {e}")
+                continue
+            params = {
+                'captchaId': '42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1',
+                'token': c_token,
+                'textClickArr': json.dumps([{'x': x}]),
+                '_': int(time.time()*1000)
+            }
+            try:
+                resp = self.requests.get(
+                    'https://captcha.chaoxing.com/captcha/check/verification/result',
+                    params=params,
+                    headers=self.headers,
+                    timeout=5)
+                txt = resp.text
+                txt = txt[txt.find('(')+1:txt.rfind(')')]
+                data = json.loads(txt)
+                val = json.loads(data.get('extraData','{}')).get('validate','')
+                if val:
+                    return val
+            except Exception as e:
+                logging.error(f"Verify captcha error: {e}")
+        logging.warning("Captcha failed all retries")
+        return ''
+
     def x_distance(self, bg_url, tp_url):
-        import numpy as np
         import cv2
-        hdr = {"Referer": "https://office.chaoxing.com/"}
-        bg = self.requests.get(bg_url, headers=hdr).content
-        tp = self.requests.get(tp_url, headers=hdr).content
-
-        arr = np.frombuffer(tp, np.uint8)
-        slide = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
-        mask = slide[:, :, 3]
-        mask[mask != 0] = 255
-        x, y, w, h = cv2.boundingRect(mask)
-        tp_img = slide[y:y+h, x:x+w, :3]
-
-        bg_img = cv2.imdecode(np.frombuffer(bg, np.uint8), cv2.IMREAD_COLOR)
-        bg_edge = cv2.Canny(bg_img, 100, 200)
-        tp_edge = cv2.Canny(tp_img, 100, 200)
-        res = cv2.matchTemplate(
-            cv2.cvtColor(bg_edge, cv2.COLOR_GRAY2BGR),
-            cv2.cvtColor(tp_edge, cv2.COLOR_GRAY2BGR),
-            cv2.TM_CCOEFF_NORMED)
-        _, _, _, max_loc = cv2.minMaxLoc(res)
+        import numpy as np
+        # 下载图片
+        h = self.requests.get(bg_url, headers=self.headers).content
+        t = self.requests.get(tp_url, headers=self.headers).content
+        bg = cv2.imdecode(np.frombuffer(h, np.uint8), cv2.IMREAD_COLOR)
+        # 处理滑块
+        arr = np.frombuffer(t, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+        mask = img[:,:,3]
+        mask[mask!=0]=255
+        x,y,w,hh = cv2.boundingRect(mask)
+        tp = img[y:y+hh, x:x+w, :3]
+        # 匹配
+        bg_edge = cv2.Canny(bg,100,200)
+        tp_edge = cv2.Canny(tp,100,200)
+        res = cv2.matchTemplate(bg_edge, tp_edge, cv2.TM_CCOEFF_NORMED)
+        _,_,_,max_loc = cv2.minMaxLoc(res)
         return max_loc[0]
 
-    def submit(self, times, roomid, seat_list, action):
-        for seat in seat_list:
-            attempts = self.max_attempt
-            while attempts > 0:
-                token = self._get_page_token(self.url.format(roomid, seat))
-                captcha = self.resolve_captcha() if self.enable_slider else ""
-                success, msg = self.get_submit(
-                    self.submit_url, times, token,
-                    roomid, seat, captcha, action)
-                if success:
+    def submit(self, times, roomid, seatids, action):
+        for seat in seatids:
+            suc = False
+            while not suc and self.max_attempt>0:
+                page_token = self._get_page_token(self.url.format(roomid, seat))
+                logging.info(f"Get page token: {page_token}")
+                captcha = self.resolve_captcha() if self.enable_slider else ''
+                suc = self._do_submit(times, roomid, seat, page_token, captcha, action)
+                if suc:
                     return True
-                if "已被占用" in msg:
-                    logging.info(f"Seat {seat} {times} occupied, skipping.")
-                    break
-                attempts -= 1
                 time.sleep(self.sleep_time)
+                self.max_attempt -= 1
         return False
 
-    def get_submit(self, url, times, token, roomid, seatid, captcha, action):
+    def _do_submit(self, times, roomid, seatid, token, captcha, action):
         delta = 1 if self.reserve_next_day else 0
-        day = datetime.date.today() + datetime.timedelta(days=delta)
-        if action:
-            day += datetime.timedelta(days=1)
+        day = datetime.date.today() + datetime.timedelta(days=delta + (1 if action else 0))
         params = {
-            "roomId": roomid,
-            "startTime": times[0],
-            "endTime": times[1],
-            "day": str(day),
-            "seatNum": seatid,
-            "captcha": captcha,
-            "token": token
+            'roomId': roomid,
+            'startTime': times[0],
+            'endTime': times[1],
+            'day': str(day),
+            'seatNum': seatid,
+            'captcha': captcha,
+            'token': token
         }
-        params["enc"] = enc(params)
-        resp = self.requests.post(url, params=params, verify=True)
-        obj = resp.json()
-        logging.info(f"submit {times[0]}~{times[1]} seat {seatid}: {obj}")
-        return obj.get("success", False), obj.get("msg", "")
-
-# 用法示例：
-# rsv = reserve(enable_slider=True, max_attempt=30)
-# rsv.login("账号", "密码")
-# rsv.submit(['09:00','13:00'], roomid=6913, seat_list=['054','056'], action=False)
+        params['enc'] = enc(params)
+        r = self.requests.post(self.submit_url, params=params, verify=True)
+        res = r.json()
+        logging.info(f"submit {times[0]}~{times[1]} seat {seatid}: {res}")
+        return res.get('success', False)
