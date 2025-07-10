@@ -154,4 +154,3 @@ if __name__ == "__main__":
         debug(usersdata, args.action)
     else:
         get_roomid(None, None)
-
