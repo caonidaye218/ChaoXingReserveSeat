@@ -1,48 +1,51 @@
 {
   "reserve": [
+    // 用户 1 的三段预约
     {
-      "username": "",
-      "password": "",
+      "username": "15399756985",
+      "password": "chenyu123",
       "time": ["09:00","13:00"],
       "roomid": "6913",
       "seatid": ["055"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "",
-      "password": "",
+      "username": "15399756985",
+      "password": "chenyu123",
       "time": ["13:00","17:00"],
       "roomid": "6913",
       "seatid": ["055"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "",
-      "password": "",
+      "username": "15399756985",
+      "password": "chenyu123",
       "time": ["17:00","21:00"],
       "roomid": "6913",
       "seatid": ["055"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
+
+    // 用户 2 的三段预约
     {
-      "username": "",
-      "password": "",
+      "username": "18507485528",
+      "password": "zf040505",
       "time": ["09:00","13:00"],
       "roomid": "6913",
       "seatid": ["053"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "",
-      "password": "",
+      "username": "18507485528",
+      "password": "zf040505",
       "time": ["13:00","17:00"],
       "roomid": "6913",
       "seatid": ["053"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "",
-      "password": "",
+      "username": "18507485528",
+      "password": "zf040505",
       "time": ["17:00","21:00"],
       "roomid": "6913",
       "seatid": ["053"],
