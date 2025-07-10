@@ -1,69 +1,52 @@
 {
-    "reserve": [
-        {
-            "username": "xxxxxxx",
-            "password": "xxxxxxx",
-            "time": ["14:00", "18:00"],
-            "roomid": "6913",
-            "seatid": ["055"],
-            "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        },
-        {
-            "username": "xxxxxxx",
-            "password": "xxxxxxx",
-            "time": ["18:00", "21:00"],
-            "roomid": "6913",
-            "seatid": ["055"],
-            "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        },
-        {
-            "username": "xxxxxxx",
-            "password": "xxxxxxx",
-            "time": ["10:00", "14:00"],
-            "roomid": "6913",
-            "seatid": ["055"],
-            "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        },
-        {
-            "username": "xxxxxxx",
-            "password": "xxxxxxx",
-            "time": ["15:00", "19:00"],
-            "roomid": "6913",
-            "seatid": ["054"],
-            "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday"]
-        },
-        {
-            "username": "xxxxxxx",
-            "password": "xxxxxxx",
-            "time": ["19:00", "22:00"],
-            "roomid": "6913",
-            "seatid": ["054"],
-            "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday"]
-        },
-        {
-            "username": "xxxxxxx",
-            "password": "xxxxxxx",
-            "time": ["10:00", "14:00"],
-            "roomid": "6913",
-            "seatid": ["056"],
-            "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        },
-        {
-            "username": "xxxxxxx",
-            "password": "xxxxxxx",
-            "time": ["14:00", "18:00"],
-            "roomid": "6913",
-            "seatid": ["056"],
-            "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        },
-        {
-            "username": "xxxxxxx",
-            "password": "xxxxxxx",
-            "time": ["18:00", "21:00"],
-            "roomid": "6913",
-            "seatid": ["056"],
-            "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        }
-    ]
+  "reserve": [
+    {
+      "username": "15399756985",
+      "password": "chenyu123",
+      "time": ["09:00","13:00"],
+      "roomid": "6913",
+      "seatid": ["055"],
+      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    },
+    {
+      "username": "15399756985",
+      "password": "chenyu123",
+      "time": ["13:00","17:00"],
+      "roomid": "6913",
+      "seatid": ["055"],
+      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    },
+    {
+      "username": "15399756985",
+      "password": "chenyu123",
+      "time": ["17:00","21:00"],
+      "roomid": "6913",
+      "seatid": ["055"],
+      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    },
+    {
+      "username": "18507485528",
+      "password": "zf040505",
+      "time": ["09:00","13:00"],
+      "roomid": "6913",
+      "seatid": ["053"],
+      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    },
+    {
+      "username": "18507485528",
+      "password": "zf040505",
+      "time": ["13:00","17:00"],
+      "roomid": "6913",
+      "seatid": ["053"],
+      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    },
+    {
+      "username": "18507485528",
+      "password": "zf040505",
+      "time": ["17:00","21:00"],
+      "roomid": "6913",
+      "seatid": ["053"],
+      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    }
+  ]
 }
-
