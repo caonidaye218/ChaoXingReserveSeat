@@ -85,9 +85,6 @@ class reserve:
             return False, obj.get('msg2', '')
 
     def resolve_captcha(self):
-        """
-        最多尝试 self.max_captcha_retry 次拉取并计算滑块验证码。
-        """
         for attempt in range(1, self.max_captcha_retry + 1):
             logging.info(f"Captcha attempt {attempt}/{self.max_captcha_retry}")
             token, bg, tp = self.get_slide_captcha_data()
@@ -111,10 +108,8 @@ class reserve:
                 r = self.requests.get(
                     "https://captcha.chaoxing.com/captcha/check/verification/result",
                     params=params, headers=self.headers, timeout=5)
-                data = json.loads(
-                    r.text.strip("jQuery_cb(").rstrip(")"))
-                validate = json.loads(
-                    data.get("extraData", "{}")).get("validate", "")
+                data = json.loads(r.text.strip("jQuery_cb(").rstrip(")"))
+                validate = json.loads(data.get("extraData", "{}")).get("validate", "")
                 if validate:
                     logging.info("Captcha solved")
                     return validate
@@ -140,9 +135,15 @@ class reserve:
                 params=params,
                 headers=self.headers,
                 timeout=5)
-            data = json.loads(r.text.strip("jQuery_cb2(").rstrip(")"))
-            img = data["imageVerificationVo"]
-            return data["token"], img["shadeImage"], img["cutoutImage"]
+            raw = json.loads(r.text.strip("jQuery_cb2(").rstrip(")"))
+            # 先尝试顶级字段
+            vo = raw.get("imageVerificationVo")
+            # 如果不存在，再尝试 data.imageVerificationVo
+            if not vo and isinstance(raw.get("data"), dict):
+                vo = raw["data"].get("imageVerificationVo")
+            if not vo:
+                raise KeyError("no imageVerificationVo in response")
+            return raw.get("token"), vo.get("shadeImage"), vo.get("cutoutImage")
         except Exception as e:
             logging.error(f"Fetch captcha data error: {e}")
             return None, None, None
@@ -150,12 +151,10 @@ class reserve:
     def x_distance(self, bg_url, tp_url):
         import numpy as np
         import cv2
-        # 下载图片
         hdr = {"Referer": "https://office.chaoxing.com/"}
         bg = self.requests.get(bg_url, headers=hdr).content
         tp = self.requests.get(tp_url, headers=hdr).content
 
-        # 对 tp 做裁剪
         arr = np.frombuffer(tp, np.uint8)
         slide = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
         mask = slide[:, :, 3]
@@ -174,10 +173,6 @@ class reserve:
         return max_loc[0]
 
     def submit(self, times, roomid, seat_list, action):
-        """
-        times: ['09:00','13:00']
-        seat_list: ['054','056',...]
-        """
         for seat in seat_list:
             attempts = self.max_attempt
             while attempts > 0:
@@ -188,13 +183,11 @@ class reserve:
                     roomid, seat, captcha, action)
                 if success:
                     return True
-                # 座位被占用，跳过本时段
                 if "已被占用" in msg:
                     logging.info(f"Seat {seat} {times} occupied, skipping.")
                     break
                 attempts -= 1
                 time.sleep(self.sleep_time)
-            # 本座位所有重试完成，继续下一个座位
         return False
 
     def get_submit(self, url, times, token, roomid, seatid, captcha, action):
@@ -217,7 +210,7 @@ class reserve:
         logging.info(f"submit {times[0]}~{times[1]} seat {seatid}: {obj}")
         return obj.get("success", False), obj.get("msg", "")
 
-# Usage 示例：
+# 用法示例：
 # rsv = reserve(enable_slider=True, max_attempt=30)
 # rsv.login("账号", "密码")
 # rsv.submit(['09:00','13:00'], roomid=6913, seat_list=['054','056'], action=False)
