@@ -1,64 +1,64 @@
 {
   "reserve": [
     {
-      "username": "18954239132",
-      "password": "tan333888",
+      "username": "",
+      "password": "",
       "time": ["09:00", "13:00"],
       "roomid": "6913",
       "seatid": ["054"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "18954239132",
-      "password": "tan333888",
+      "username": "",
+      "password": "",
       "time": ["13:00", "17:00"],
       "roomid": "6913",
       "seatid": ["054"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "18954239132",
-      "password": "tan333888",
+      "username": "",
+      "password": "",
       "time": ["17:00", "21:00"],
       "roomid": "6913",
       "seatid": ["054"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "18954239132",
-      "password": "tan333888",
+      "username": "",
+      "password": "",
       "time": ["21:00", "22:00"],
       "roomid": "6913",
       "seatid": ["054"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "18507485528",
-      "password": "Zf040505",
+      "username": "",
+      "password": "",
       "time": ["09:00", "13:00"],
       "roomid": "6913",
       "seatid": ["056"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "18507485528",
-      "password": "Zf040505",
+      "username": "",
+      "password": "",
       "time": ["13:00", "17:00"],
       "roomid": "6913",
       "seatid": ["056"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "18507485528",
-      "password": "Zf040505",
+      "username": "",
+      "password": "",
       "time": ["17:00", "21:00"],
       "roomid": "6913",
       "seatid": ["056"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     },
     {
-      "username": "18507485528",
-      "password": "Zf040505",
+      "username": "",
+      "password": "",
       "time": ["21:00", "22:00"],
       "roomid": "6913",
       "seatid": ["056"],
