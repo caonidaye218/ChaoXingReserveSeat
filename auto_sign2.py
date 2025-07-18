@@ -90,7 +90,7 @@ class ChaoxingAutoSign:
         except Exception as e:
             print(f"[-] 签到请求异常: {e}")
 
-    def wait_until(self, target_time="08:40:00"):
+    def wait_until(self, target_time="08:40:10"):
         print(f"[+] 等待签到时间 {target_time} 中...")
         while True:
             beijing = datetime.now(timezone.utc) + timedelta(hours=8)
