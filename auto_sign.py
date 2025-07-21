@@ -3,8 +3,8 @@ import time
 
 class ChaoxingAutoSign:
     def __init__(self):
-        self.username = "18954239132"
-        self.password = "tan333888"
+        self.username = "15399756985"
+        self.password = "chenyu123"
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) '
@@ -95,7 +95,7 @@ class ChaoxingAutoSign:
 
     def run(self):
         self.login()
-        self.wait_until(target_time="08:40:00")
+        self.wait_until(target_time="08:40:01")
         time.sleep(2)
         reserves = self.get_reserve_list()
         if not reserves:
