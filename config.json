@@ -31,38 +31,6 @@
       "roomid": "6913",
       "seatid": ["056"],
       "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    },
-    {
-      "username": "",
-      "password": "",
-      "time": ["09:00", "13:00"],
-      "roomid": "6913",
-      "seatid": ["053"],
-      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    },
-    {
-      "username": "",
-      "password": "",
-      "time": ["13:00", "17:00"],
-      "roomid": "6913",
-      "seatid": ["053"],
-      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    },
-    {
-      "username": "",
-      "password": "",
-      "time": ["17:00", "21:00"],
-      "roomid": "6913",
-      "seatid": ["053"],
-      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    },
-    {
-      "username": "",
-      "password": "",
-      "time": ["21:00", "22:00"],
-      "roomid": "6913",
-      "seatid": ["053"],
-      "daysofweek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     }
   ]
 }
