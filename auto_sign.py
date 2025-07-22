@@ -95,7 +95,7 @@ class ChaoxingAutoSign:
 
     def run(self):
         self.login()
-        self.wait_until(target_time="08:40:01")
+        self.wait_until(target_time="09:00:00")
         time.sleep(2)
         reserves = self.get_reserve_list()
         if not reserves:
