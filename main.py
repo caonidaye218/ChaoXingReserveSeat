@@ -3,215 +3,204 @@ import time
 import argparse
 import os
 import logging
-import datetime
-import pytz
-import random
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- 日志记录配置 ---
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# --- 从 utils 导入必要的模块 ---
+# --- 从 utils 导入模块 ---
 from utils import reserve, get_user_credentials
 
-# --- 🔥 全局配置 (已根据你的要求更新) ---
-SLEEPTIME = 0.8         # 每次抢座的间隔
-LOGIN_TIME = "21:58:30" # 提前登录时间
-RESERVE_TIME = "22:00:00" # 准点开始抢座的时间
-ENDTIME = "22:02:00"    # 延长抢座时间窗口
-ENABLE_SLIDER = True    # 🔥 必须启用滑块验证码处理
-MAX_ATTEMPT = 8         # 🔥 大幅增加尝试次数
-RESERVE_NEXT_DAY = False # 实验版：预约当天座位
+# --- 时间获取函数 (使用你原始版本的方式，无pytz依赖) ---
+get_current_time = lambda action: (
+    time.strftime("%H:%M:%S", time.localtime(time.time() + 8 * 3600))
+    if action
+    else time.strftime("%H:%M:%S", time.localtime(time.time()))
+)
+get_current_dayofweek = lambda action: (
+    time.strftime("%A", time.localtime(time.time() + 8 * 3600))
+    if action
+    else time.strftime("%A", time.localtime(time.time()))
+)
 
-# --- 时间处理函数 ---
-def get_current_time():
-    """获取当前的北京时间 H:M:S"""
-    return datetime.datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%H:%M:%S")
+# --- 🔥 全局配置 ---
+# 你可以在这里设置定时和抢座参数
+LOGIN_TIME = "21:58:30"   # 脚本将等待到这个时间点才开始登录
+RESERVE_TIME = "22:00:00" # 登录后，将等待到这个时间点才开始抢座
+ENDTIME = "22:02:00"      # 抢座循环将在这个时间点后结束
 
-def get_current_dayofweek():
-    """获取当前是星期几 (英文)"""
-    return datetime.datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%A")
+SLEEPTIME = 0.2           # 每次抢座失败后的间隔
+ENABLE_SLIDER = True      # 是否有滑块验证
+MAX_ATTEMPT = 5           # 每个座位的最大尝试次数
+RESERVE_NEXT_DAY = False  # 🔥 已设置为 False，预约当天座位
 
-def wait_until(target_time_str):
-    """等待直到指定的北京时间"""
+def wait_until(target_time_str, action):
+    """等待直到指定的时间"""
     logging.info(f"等待直到北京时间 {target_time_str}...")
-    while get_current_time() < target_time_str:
-        time.sleep(0.1)
+    while get_current_time(action) < target_time_str:
+        time.sleep(1)
     logging.info(f"已到达指定时间 {target_time_str}，继续执行。")
 
 
-# --- 核心逻辑函数 ---
+def login_and_reserve(users, usernames, passwords, action, success_list=None):
+    """
+    核心的登录和预约函数，保留了你原始的逻辑。
+    为尚未成功的用户尝试预约。
+    """
+    if success_list is None:
+        success_list = [False] * len(users)
+        
+    current_dayofweek = get_current_dayofweek(action)
 
-def login_user(username, password):
-    """为单个用户登录并返回 reserve 实例"""
-    logging.info(f"----------- 🔐 正在登录用户 {username} -----------")
-    try:
+    for index, user in enumerate(users):
+        # 如果该用户已预约成功，则跳过
+        if success_list[index]:
+            continue
+
+        username, password, times, roomid, seatid, daysofweek = user.values()
+        
+        if action:
+            username, password = (
+                usernames.split(",")[index],
+                passwords.split(",")[index],
+            )
+        
+        if current_dayofweek not in daysofweek:
+            # 对于今天不需要预约的用户，我们将其标记为成功，以防主循环卡住
+            success_list[index] = True
+            continue
+
+        logging.info(f"----------- {username} -- {times} -- {seatid} try -----------")
+        
         s = reserve(
             sleep_time=SLEEPTIME,
             max_attempt=MAX_ATTEMPT,
             enable_slider=ENABLE_SLIDER,
             reserve_next_day=RESERVE_NEXT_DAY,
         )
-        login_success, msg = s.login(username, password)
-        if not login_success:
-            logging.error(f"❌ 用户 {username} 登录失败: {msg}")
-            return None
-        logging.info(f"✅ 用户 {username} 登录成功。")
-        return s
-    except Exception as e:
-        logging.error(f"💥 用户 {username} 登录过程中发生异常: {e}")
-        return None
-
-def login_all_users(users, usernames_env, passwords_env, action):
-    """并发登录所有用户并缓存会话实例"""
-    session_cache = {}
-    
-    # 根据模式确定账号密码来源
-    if not action:
-        usernames_list = [u.get('username') for u in users]
-        passwords_list = [u.get('password') for u in users]
-    else:
-        usernames_list = usernames_env.split(',')
-        passwords_list = passwords_env.split(',')
-
-    if len(usernames_list) != len(users) or len(passwords_list) != len(users):
-        logging.error("❌ 账号/密码数量与配置文件中的用户数不匹配！")
-        return {}
-
-    # 使用线程池并发登录
-    with ThreadPoolExecutor(max_workers=min(len(users), 5)) as executor:
-        future_to_user = {
-            executor.submit(login_user, u, p): users[i]["username"]
-            for i, (u, p) in enumerate(zip(usernames_list, passwords_list))
-        }
-        for future in as_completed(future_to_user):
-            username = future_to_user[future]
-            session = future.result()
-            if session:
-                session_cache[username] = session
-    
-    logging.info(f"🎯 登录流程结束，共 {len(session_cache)} 个用户成功登录。")
-    return session_cache
-
-def process_user_tasks(session, user_config, action):
-    """为一个用户处理其所有预约任务"""
-    username = user_config.get('username')
-    current_day = get_current_dayofweek()
-    
-    # 筛选出当天需要执行的任务
-    tasks_to_run = [
-        task for task in user_config.get('tasks', []) if current_day in task.get('daysofweek', [])
-    ]
-    
-    if not tasks_to_run:
-        logging.info(f"📅 用户 {username}: 今天没有需要执行的预约任务。")
-        return True
-
-    logging.info(f"📋 用户 {username}: 今天有 {len(tasks_to_run)} 个任务需要执行。")
-    
-    all_tasks_successful = True
-    for i, task in enumerate(tasks_to_run):
-        times = task.get('time')
-        roomid = task.get('roomid')
-        seatid = task.get('seatid')
+        s.get_login_status()
+        s.login(username, password)
+        s.requests.headers.update({"Host": "office.chaoxing.com"})
         
-        logging.info(f"--- 🚀 开始为用户 {username} 执行第{i+1}个任务: 时间 {times}, 房间 {roomid}, 座位 {seatid} ---")
+        suc = s.submit(times, roomid, seatid, action)
+        success_list[index] = suc
         
-        success = session.submit(times, roomid, seatid, action)
-        if not success:
-            all_tasks_successful = False
-            logging.error(f"❌ 用户 {username} 的第{i+1}个任务失败！")
-        else:
-            logging.info(f"✅ 用户 {username} 的第{i+1}个任务成功！")
-            # 如果一个任务成功，可以根据需要决定是否继续下一个任务
-            # 当前逻辑是继续尝试预约其他时间段
-            
-    return all_tasks_successful
+    return success_list
 
 
 def main(users, action=False):
-    """主执行函数，包含定时逻辑"""
-    logging.info("🎬 程序启动...")
+    """主执行函数，包含定时和分流逻辑"""
+    logging.info(f"🎬 程序启动，将在 {LOGIN_TIME} 开始登录...")
+
+    # 1. 定时功能：等待到登录时间
+    wait_until(LOGIN_TIME, action)
     
-    # 1. 等待到登录时间
-    wait_until(LOGIN_TIME)
+    usernames, passwords = None, None
+    if action:
+        usernames, passwords = get_user_credentials(action)
     
-    # 2. 登录所有用户
-    usernames_env, passwords_env = get_user_credentials(action)
-    session_cache = login_all_users(users, usernames_env, passwords_env, action)
-
-    if not session_cache:
-        logging.critical("💀 没有任何用户登录成功，程序终止。")
-        return
-
-    # 3. 等待到抢座时间
-    wait_until(RESERVE_TIME)
-
+    # 2. 定时功能：等待到抢座时间
+    wait_until(RESERVE_TIME, action)
+    
     logging.info("========== 🎯 开始执行预约任务 ==========")
     
-    # 4. 并发执行所有用户的任务
-    with ThreadPoolExecutor(max_workers=len(users)) as executor:
-        future_to_user = {
-            executor.submit(process_user_tasks, session, user, action): user.get('username')
-            for user in users if (session := session_cache.get(user.get('username')))
-        }
-        
-        for future in as_completed(future_to_user):
-            username = future_to_user[future]
-            try:
-                result = future.result()
-                if result:
-                    logging.info(f"🎉 用户 {username} 的所有任务处理完毕。")
-                else:
-                    logging.warning(f"⚠️ 用户 {username} 的部分或全部任务处理失败。")
-            except Exception as e:
-                logging.error(f"💥 处理用户 {username} 的任务时发生严重异常: {e}")
+    attempt_times = 0
+    success_list = None
+    
+    current_dayofweek = get_current_dayofweek(action)
+    today_reservation_num = sum(
+        1 for d in users if current_dayofweek in d.get("daysofweek", [])
+    )
+    if today_reservation_num == 0:
+        logging.info("🌟 今天没有需要执行的预约任务，程序结束。")
+        return
 
-    logging.info("========== 🏁 所有预约任务处理完毕 ==========")
+    # 3. 分流机制：循环抢座直到 ENDTIME
+    while get_current_time(action) < ENDTIME:
+        attempt_times += 1
+        
+        try:
+            success_list = login_and_reserve(
+                users, usernames, passwords, action, success_list
+            )
+        except Exception as e:
+            logging.error(f"在第 {attempt_times} 轮尝试中发生错误: {e}")
+
+        successful_count = sum(1 for s in success_list if s)
+        logging.info(
+            f"第 {attempt_times} 轮尝试结束, "
+            f"成功 {successful_count}/{today_reservation_num}, "
+            f"当前时间 {get_current_time(action)}"
+        )
+        
+        if successful_count >= today_reservation_num:
+            logging.info("🎉 全部预约成功！")
+            return
+        
+        time.sleep(1) # 每轮结束后短暂休息
+
+    logging.warning(f"🏁 抢座时间已过 ({ENDTIME})，程序结束。")
 
 
 def debug(users, action=False):
-    """调试模式，立即执行一次完整的登录和预约流程"""
+    """调试模式，立即执行一次"""
     logging.info("--- 🔧 调试模式启动 ---")
-    
-    # 调试模式下不等待，直接执行
-    usernames_env, passwords_env = get_user_credentials(action)
-    session_cache = login_all_users(users, usernames_env, passwords_env, action)
+    usernames, passwords = None, None
+    if action:
+        usernames, passwords = get_user_credentials(action)
 
-    if not session_cache:
-        logging.critical("💀 调试失败：没有任何用户登录成功。")
-        return
-
-    for user in users:
-        username = user.get('username')
-        session = session_cache.get(username)
-        if session:
-            process_user_tasks(session, user, action)
-
+    # 调试模式下直接调用一次预约函数
+    login_and_reserve(users, usernames, passwords, action)
     logging.info("--- 🔧 调试模式结束 ---")
 
 
+def get_roomid(args1, args2):
+    """获取房间ID的功能，保留你原始版本"""
+    username = input("请输入用户名：")
+    password = input("请输入密码：")
+    s = reserve(
+        sleep_time=SLEEPTIME,
+        max_attempt=MAX_ATTEMPT,
+        enable_slider=ENABLE_SLIDER,
+        reserve_next_day=RESERVE_NEXT_DAY,
+    )
+    s.get_login_status()
+    s.login(username=username, password=password)
+    s.requests.headers.update({"Host": "office.chaoxing.com"})
+    encode = input("请输入deptldEnc：")
+    s.roomid(encode)
+
+
 if __name__ == "__main__":
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-    parser = argparse.ArgumentParser(prog='超星座位自动预约')
-    parser.add_argument('-u', '--user', default=config_path, help='用户配置文件路径')
-    parser.add_argument('-m', '--method', default="reserve", choices=["reserve", "debug"], help='运行模式: reserve (定时) 或 debug (立即)')
-    parser.add_argument('-a', '--action', action="store_true", help='启用 GitHub Actions 模式')
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    parser = argparse.ArgumentParser(prog="Chao Xing seat auto reserve")
+    parser.add_argument("-u", "--user", default=config_path, help="user config file")
+    parser.add_argument(
+        "-m",
+        "--method",
+        default="reserve",
+        choices=["reserve", "debug", "room"],
+        help="reserve (定时), debug (立即), room (获取房间ID)",
+    )
+    parser.add_argument(
+        "-a",
+        "--action",
+        action="store_true",
+        help="启用 GitHub Actions 模式",
+    )
     args = parser.parse_args()
     
-    try:
-        with open(args.user, "r", encoding="utf-8") as data:
-            # 🔥 注意：这里的配置文件结构和我之前版本不同，需要适配
-            # 假设你的配置文件结构是 {"reserve": [{"username": ..., "tasks": [...]}]}
-            usersdata = json.load(data).get("reserve", [])
-        logging.info(f"📚 成功加载 {len(usersdata)} 个用户配置。")
-    except Exception as e:
-        logging.error(f"💥 配置文件加载失败: {e}")
-        exit(1)
-    
-    if args.method == "reserve":
-        main(usersdata, args.action)
+    func_dict = {"reserve": main, "debug": debug, "room": get_roomid}
+
+    if args.method in ["reserve", "debug"]:
+        try:
+            with open(args.user, "r", encoding="utf-8") as data:
+                usersdata = json.load(data)["reserve"]
+            func_dict[args.method](usersdata, args.action)
+        except Exception as e:
+            logging.error(f"💥 配置文件加载或执行出错: {e}")
+            exit(1)
     else:
-        debug(usersdata, args.action)
+        # 调用 get_roomid
+        func_dict[args.method](None, None)
