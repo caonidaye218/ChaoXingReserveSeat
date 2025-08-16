@@ -260,10 +260,10 @@ class reserve:
         self, url, times, token, roomid, seatid, captcha="", action=False, value=""
     ):
         delta_day = 1 if self.reserve_next_day else 0
-        # 唯一的改动：删除掉了if action:的判断，确保无论如何都使用当天的日期
-        day = datetime.date.today() + datetime.timedelta(
-            days=0 + delta_day
-        )
+        # 无论是否在action模式下，都使用当天的日期
+        # 工作流中已设置时区 TZ: Asia/Shanghai，保证日期正确
+        day = datetime.date.today() + datetime.timedelta(days=0 + delta_day)
+        
         parm = {
             "roomId": roomid,
             "startTime": times[0],
