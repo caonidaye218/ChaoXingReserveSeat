@@ -32,6 +32,9 @@ ENABLE_SLIDER = True  # 是否有滑块验证
 MAX_ATTEMPT = 5  # 最大尝试次数
 RESERVE_NEXT_DAY = False  # 预约明天而不是今天的
 
+# 🔥 新增：最大循环尝试次数设置
+MAX_LOOP_ATTEMPTS = 3  # 最多循环尝试3次，如果3次都没有成功预约任何座位则停止
+
 
 def execute_single_task(username, password, task, action, task_id):
     """执行单个任务 - 新增的并行执行函数"""
@@ -176,6 +179,9 @@ def main(users, action=False):
     current_time = get_current_time(action)
     logging.info(f"start time {current_time}, action {'on' if action else 'off'}")
     attempt_times = 0
+    # 🔥 新增：连续失败计数器
+    consecutive_fail_count = 0
+    
     usernames, passwords = None, None
     if action:
         usernames, passwords = get_user_credentials(action)
@@ -195,21 +201,69 @@ def main(users, action=False):
             if current_dayofweek in user.get("daysofweek", []):
                 today_reservation_num += 1
     
-    while current_time < ENDTIME:
+    # 🔥 如果今天没有预约任务，直接退出
+    if today_reservation_num == 0:
+        logging.info("Today not set to reserve, exiting...")
+        return
+    
+    while current_time < ENDTIME and consecutive_fail_count < MAX_LOOP_ATTEMPTS:
         attempt_times += 1
-        # try:
-        success_list = login_and_reserve(
-            users, usernames, passwords, action, success_list
-        )
-        # except Exception as e:
-        #     print(f"An error occurred: {e}")
-        print(
-            f"attempt time {attempt_times}, time now {current_time}, success list {success_list}"
-        )
+        logging.info(f"🔄 Starting attempt {attempt_times} (consecutive failures: {consecutive_fail_count})")
+        
+        try:
+            success_list = login_and_reserve(
+                users, usernames, passwords, action, success_list
+            )
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+            consecutive_fail_count += 1
+            current_time = get_current_time(action)
+            logging.info(
+                f"attempt time {attempt_times}, time now {current_time}, "
+                f"success list {success_list}, consecutive failures: {consecutive_fail_count}"
+            )
+            continue
+        
         current_time = get_current_time(action)
-        if success_list and sum(success_list) == today_reservation_num:
-            print(f"reserved successfully!")
+        successful_tasks = sum(success_list) if success_list else 0
+        
+        logging.info(
+            f"attempt time {attempt_times}, time now {current_time}, "
+            f"success list {success_list} ({successful_tasks}/{today_reservation_num} tasks completed)"
+        )
+        
+        # 🔥 检查是否全部预约成功
+        if success_list and successful_tasks == today_reservation_num:
+            logging.info("🎉 All reservations completed successfully!")
             return
+        
+        # 🔥 检查本轮是否有任何成功的预约
+        if success_list and successful_tasks > 0:
+            # 有成功的预约，重置连续失败计数器
+            consecutive_fail_count = 0
+            logging.info(f"✅ Some reservations succeeded, continuing...")
+        else:
+            # 本轮没有任何成功的预约
+            consecutive_fail_count += 1
+            logging.warning(f"❌ No reservations succeeded in this attempt. Consecutive failures: {consecutive_fail_count}")
+        
+        # 🔥 检查是否达到最大连续失败次数
+        if consecutive_fail_count >= MAX_LOOP_ATTEMPTS:
+            logging.error(f"💥 Reached maximum consecutive failures ({MAX_LOOP_ATTEMPTS}). Stopping reservation attempts.")
+            break
+        
+        # 短暂休息后继续下一轮尝试
+        time.sleep(1)
+    
+    # 🔥 最终状态报告
+    if current_time >= ENDTIME:
+        logging.info("⏰ Reached end time, stopping reservation attempts.")
+    
+    final_success_count = sum(success_list) if success_list else 0
+    if final_success_count > 0:
+        logging.info(f"✅ Final result: {final_success_count}/{today_reservation_num} reservations completed successfully!")
+    else:
+        logging.info("❌ Final result: No reservations were successful.")
 
 
 def debug(users, action=False):
