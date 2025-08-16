@@ -260,13 +260,10 @@ class reserve:
         self, url, times, token, roomid, seatid, captcha="", action=False, value=""
     ):
         delta_day = 1 if self.reserve_next_day else 0
-        day = datetime.date.today() + datetime.timedelta(
-            days=0 + delta_day
-        )  # 预约今天，修改days=1表示预约明天
-        if action:
-            day = datetime.date.today() + datetime.timedelta(
-                days=1 + delta_day
-            )  # 由于action时区问题导致其早+8区一天
+        # 无论是否在action模式下，都使用当天的日期
+        # 工作流中已设置时区 TZ: Asia/Shanghai，保证日期正确
+        day = datetime.date.today() + datetime.timedelta(days=0 + delta_day)
+        
         parm = {
             "roomId": roomid,
             "startTime": times[0],
