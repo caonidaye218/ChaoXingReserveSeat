@@ -3,6 +3,8 @@ import time
 import argparse
 import os
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import random
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -24,47 +26,149 @@ get_current_dayofweek = lambda action: (
 
 
 SLEEPTIME = 0.2  # 每次抢座的间隔
-ENDTIME = "22:01:00"  # 根据学校的预约座位时间+1min即可
+ENDTIME = "20:00:00"  # 根据学校的预约座位时间+1min即可
 
 ENABLE_SLIDER = True  # 是否有滑块验证
-MAX_ATTEMPT = 3  # 最大尝试次数
+MAX_ATTEMPT = 5  # 最大尝试次数
 RESERVE_NEXT_DAY = False  # 预约明天而不是今天的
+
+
+def execute_single_task(username, password, task, action, task_id):
+    """执行单个任务 - 新增的并行执行函数"""
+    times = task["time"]
+    roomid = task["roomid"]
+    seatid = task["seatid"]
+    
+    logging.info(f"----------- {username} -- {times} -- {seatid} try (Task {task_id}) -----------")
+    
+    s = reserve(
+        sleep_time=SLEEPTIME,
+        max_attempt=MAX_ATTEMPT,
+        enable_slider=ENABLE_SLIDER,
+        reserve_next_day=RESERVE_NEXT_DAY,
+    )
+    s.get_login_status()
+    login_result = s.login(username, password)
+    
+    if not login_result[0]:
+        logging.error(f"Login failed for {username} (Task {task_id}): {login_result[1]}")
+        return False
+        
+    s.requests.headers.update({"Host": "office.chaoxing.com"})
+    success = s.submit(times, roomid, seatid, action)
+    
+    if success:
+        logging.info(f"✅ {username} - {times} - {seatid} SUCCESS (Task {task_id})")
+    else:
+        logging.info(f"❌ {username} - {times} - {seatid} FAILED (Task {task_id})")
+    
+    return success
 
 
 def login_and_reserve(users, usernames, passwords, action, success_list=None):
     logging.info(
         f"Global settings: \nSLEEPTIME: {SLEEPTIME}\nENDTIME: {ENDTIME}\nENABLE_SLIDER: {ENABLE_SLIDER}\nRESERVE_NEXT_DAY: {RESERVE_NEXT_DAY}"
     )
+    
     if action and len(usernames.split(",")) != len(users):
         raise Exception("user number should match the number of config")
-    if success_list is None:
-        success_list = [False] * len(users)
+    
     current_dayofweek = get_current_dayofweek(action)
+    
+    # 🔥 新增：收集所有需要执行的任务
+    all_tasks = []
+    task_index = 0
+    
     for index, user in enumerate(users):
-        username, password, times, roomid, seatid, daysofweek = user.values()
-        if action:
-            username, password = (
-                usernames.split(",")[index],
-                passwords.split(",")[index],
-            )
-        if current_dayofweek not in daysofweek:
-            logging.info("Today not set to reserve")
-            continue
-        if not success_list[index]:
-            logging.info(
-                f"----------- {username} -- {times} -- {seatid} try -----------"
-            )
-            s = reserve(
-                sleep_time=SLEEPTIME,
-                max_attempt=MAX_ATTEMPT,
-                enable_slider=ENABLE_SLIDER,
-                reserve_next_day=RESERVE_NEXT_DAY,
-            )
-            s.get_login_status()
-            s.login(username, password)
-            s.requests.headers.update({"Host": "office.chaoxing.com"})
-            suc = s.submit(times, roomid, seatid, action)
-            success_list[index] = suc
+        # 🔥 支持新格式 - 多任务
+        if "tasks" in user:
+            username = user["username"]
+            password = user["password"]
+            
+            if action:
+                username, password = (
+                    usernames.split(",")[index],
+                    passwords.split(",")[index],
+                )
+            
+            for task in user["tasks"]:
+                if current_dayofweek in task["daysofweek"]:
+                    all_tasks.append({
+                        "username": username,
+                        "password": password,
+                        "task": task,
+                        "task_id": task_index,
+                        "user_index": index
+                    })
+                    task_index += 1
+        else:
+            # 🔥 兼容旧格式 - 单任务
+            username, password, times, roomid, seatid, daysofweek = user.values()
+            if action:
+                username, password = (
+                    usernames.split(",")[index],
+                    passwords.split(",")[index],
+                )
+            
+            if current_dayofweek in daysofweek:
+                # 转换为新格式
+                task = {
+                    "time": times,
+                    "roomid": roomid,
+                    "seatid": seatid if isinstance(seatid, list) else [seatid],
+                    "daysofweek": daysofweek
+                }
+                all_tasks.append({
+                    "username": username,
+                    "password": password,
+                    "task": task,
+                    "task_id": task_index,
+                    "user_index": index
+                })
+                task_index += 1
+    
+    # 初始化成功状态列表
+    if success_list is None:
+        success_list = [False] * len(all_tasks)
+    
+    # 🔥 如果没有任务需要执行
+    if not all_tasks:
+        logging.info("Today not set to reserve")
+        return success_list
+    
+    # 🔥 并行执行所有任务
+    max_workers = min(len(all_tasks), 3)  # 最多3个并发
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_task = {}
+        
+        # 提交未完成的任务
+        for task_info in all_tasks:
+            if not success_list[task_info["task_id"]]:
+                future = executor.submit(
+                    execute_single_task,
+                    task_info["username"],
+                    task_info["password"],
+                    task_info["task"],
+                    action,
+                    task_info["task_id"]
+                )
+                future_to_task[future] = task_info
+        
+        # 处理完成的任务
+        for future in as_completed(future_to_task):
+            task_info = future_to_task[future]
+            try:
+                result = future.result()
+                success_list[task_info["task_id"]] = result
+                
+                # 添加任务间的随机延迟，避免请求过于密集
+                time.sleep(random.uniform(0.1, 0.3))
+                
+            except Exception as e:
+                logging.error(f"Task execution error for task {task_info['task_id']}: {e}")
+                success_list[task_info["task_id"]] = False
+    
     return success_list
 
 
@@ -77,9 +181,20 @@ def main(users, action=False):
         usernames, passwords = get_user_credentials(action)
     success_list = None
     current_dayofweek = get_current_dayofweek(action)
-    today_reservation_num = sum(
-        1 for d in users if current_dayofweek in d.get("daysofweek")
-    )
+    
+    # 🔥 计算今天需要执行的任务总数（支持新旧格式）
+    today_reservation_num = 0
+    for user in users:
+        if "tasks" in user:
+            # 新格式：多任务
+            today_reservation_num += sum(
+                1 for task in user["tasks"] if current_dayofweek in task.get("daysofweek", [])
+            )
+        else:
+            # 旧格式：单任务
+            if current_dayofweek in user.get("daysofweek", []):
+                today_reservation_num += 1
+    
     while current_time < ENDTIME:
         attempt_times += 1
         # try:
@@ -92,7 +207,7 @@ def main(users, action=False):
             f"attempt time {attempt_times}, time now {current_time}, success list {success_list}"
         )
         current_time = get_current_time(action)
-        if sum(success_list) == today_reservation_num:
+        if success_list and sum(success_list) == today_reservation_num:
             print(f"reserved successfully!")
             return
 
@@ -106,31 +221,66 @@ def debug(users, action=False):
     if action:
         usernames, passwords = get_user_credentials(action)
     current_dayofweek = get_current_dayofweek(action)
+    
     for index, user in enumerate(users):
-        username, password, times, roomid, seatid, daysofweek = user.values()
-        if type(seatid) == str:
-            seatid = [seatid]
-        if action:
-            username, password = (
-                usernames.split(",")[index],
-                passwords.split(",")[index],
+        # 🔥 支持新格式debug
+        if "tasks" in user:
+            username = user["username"]
+            password = user["password"]
+            
+            if action:
+                username, password = (
+                    usernames.split(",")[index],
+                    passwords.split(",")[index],
+                )
+            
+            for task in user["tasks"]:
+                if current_dayofweek in task["daysofweek"]:
+                    times = task["time"]
+                    roomid = task["roomid"]
+                    seatid = task["seatid"]
+                    if type(seatid) == str:
+                        seatid = [seatid]
+                    
+                    logging.info(f"----------- {username} -- {times} -- {seatid} try -----------")
+                    s = reserve(
+                        sleep_time=SLEEPTIME,
+                        max_attempt=MAX_ATTEMPT,
+                        enable_slider=ENABLE_SLIDER,
+                        reserve_next_day=RESERVE_NEXT_DAY,
+                    )
+                    s.get_login_status()
+                    s.login(username, password)
+                    s.requests.headers.update({"Host": "office.chaoxing.com"})
+                    suc = s.submit(times, roomid, seatid, action)
+                    if suc:
+                        return
+        else:
+            # 🔥 保持旧格式兼容
+            username, password, times, roomid, seatid, daysofweek = user.values()
+            if type(seatid) == str:
+                seatid = [seatid]
+            if action:
+                username, password = (
+                    usernames.split(",")[index],
+                    passwords.split(",")[index],
+                )
+            if current_dayofweek not in daysofweek:
+                logging.info("Today not set to reserve")
+                continue
+            logging.info(f"----------- {username} -- {times} -- {seatid} try -----------")
+            s = reserve(
+                sleep_time=SLEEPTIME,
+                max_attempt=MAX_ATTEMPT,
+                enable_slider=ENABLE_SLIDER,
+                reserve_next_day=RESERVE_NEXT_DAY,
             )
-        if current_dayofweek not in daysofweek:
-            logging.info("Today not set to reserve")
-            continue
-        logging.info(f"----------- {username} -- {times} -- {seatid} try -----------")
-        s = reserve(
-            sleep_time=SLEEPTIME,
-            max_attempt=MAX_ATTEMPT,
-            enable_slider=ENABLE_SLIDER,
-            reserve_next_day=RESERVE_NEXT_DAY,
-        )
-        s.get_login_status()
-        s.login(username, password)
-        s.requests.headers.update({"Host": "office.chaoxing.com"})
-        suc = s.submit(times, roomid, seatid, action)
-        if suc:
-            return
+            s.get_login_status()
+            s.login(username, password)
+            s.requests.headers.update({"Host": "office.chaoxing.com"})
+            suc = s.submit(times, roomid, seatid, action)
+            if suc:
+                return
 
 
 def get_roomid(args1, args2):
