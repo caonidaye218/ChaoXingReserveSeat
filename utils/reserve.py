@@ -6,7 +6,7 @@ import re
 import time
 import logging
 import datetime
-import pytz
+from zoneinfo import ZoneInfo  # Python 3.9+ 替代 pytz
 import random
 from urllib3.exceptions import InsecureRequestWarning
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -75,7 +75,7 @@ class reserve:
         self.enable_slider = enable_slider
         self.reserve_next_day = reserve_next_day
         self.retry_wait_sec = int(retry_wait_sec)
-        self.beijing_tz = pytz.timezone('Asia/Shanghai')
+        self.beijing_tz = ZoneInfo('Asia/Shanghai')
 
         # 可通过环境变量传入 fidEnc
         self.default_fid_enc = os.getenv("FID_ENC", "").strip()
