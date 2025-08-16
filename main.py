@@ -4,7 +4,7 @@ import argparse
 import os
 import logging
 import datetime
-import pytz
+from zoneinfo import ZoneInfo  # Python 3.9+ 内置，替代 pytz
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -28,11 +28,11 @@ MAX_ATTEMPT = 5         # 🔥 减少到5次尝试，避免过多请求
 # --- 时间处理函数 ---
 def get_current_time():
     """获取当前北京时间 H:M:S"""
-    return datetime.datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%H:%M:%S")
+    return datetime.datetime.now(ZoneInfo('Asia/Shanghai')).strftime("%H:%M:%S")
 
 def get_current_dayofweek():
     """获取当前星期几（英文）"""
-    return datetime.datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%A")
+    return datetime.datetime.now(ZoneInfo('Asia/Shanghai')).strftime("%A")
 
 def wait_until(target_time_str):
     """等待直到指定的北京时间"""
@@ -49,7 +49,7 @@ def login_user(username, password):
     try:
         s = reserve(
             sleep_time=SLEEPTIME,
-            max_attempt=MAX_ATTEMPT,  # 使用统一的尝试次数
+            max_attempt=MAX_ATTEMPT,
             enable_slider=ENABLE_SLIDER,  # 🔥 关键：启用验证码处理
             reserve_next_day=True  # 在Actions中总是预约第二天
         )
@@ -80,7 +80,7 @@ def login_all_users(users, usernames_env, passwords_env, action):
         return {}
 
     # 🔥 优化：减少并发数，避免触发限制
-    max_login_workers = min(len(users), 2)  # 进一步减少到最多2个并发登录
+    max_login_workers = min(len(users), 3)  # 最多3个并发登录
     
     with ThreadPoolExecutor(max_workers=max_login_workers) as executor:
         future_to_user = {
@@ -92,8 +92,8 @@ def login_all_users(users, usernames_env, passwords_env, action):
             session = future.result()
             if session:
                 session_cache[config_username] = session
-                # 登录成功后增加等待，避免会话冲突
-                time.sleep(1.0)  # 增加到1秒
+                # 登录成功后短暂等待，避免会话冲突
+                time.sleep(0.5)
     
     logging.info(f"🎯 登录流程结束，共 {len(session_cache)} 个用户成功登录。")
     return session_cache
@@ -120,10 +120,10 @@ def process_user_tasks(session, user_config, action):
         
         logging.info(f"--- 🚀 开始为用户 {username} 执行第{i+1}个任务: 时间 {times}, 房间 {roomid}, 座位 {seatid} ---")
         
-        # 🔥 关键优化：每个任务之间增加固定间隔
+        # 🔥 关键优化：每个任务之间增加随机间隔
         if i > 0:
-            wait_time = 2.0  # 固定2秒间隔，避免随机性
-            logging.info(f"⏰ 任务间隔等待 {wait_time} 秒...")
+            wait_time = random.uniform(1, 3)
+            logging.info(f"⏰ 任务间隔等待 {wait_time:.1f} 秒...")
             time.sleep(wait_time)
         
         success = session.submit(times, roomid, seatid, action)
@@ -132,8 +132,8 @@ def process_user_tasks(session, user_config, action):
             logging.error(f"❌ 用户 {username} 的第{i+1}个任务失败！")
         else:
             logging.info(f"✅ 用户 {username} 的第{i+1}个任务成功！")
-            # 成功后可以选择是否继续其他任务
-            break  # 🔥 一旦成功就停止，避免重复预约
+            # 🔥 优化：如果一个任务成功，继续尝试其他任务（而不是立即返回）
+            # 这样可以帮助用户预约多个时段的座位
             
     return all_tasks_successful
 
@@ -142,7 +142,6 @@ def process_user_tasks(session, user_config, action):
 def main(users, action=False):
     """主执行函数"""
     logging.info("🎬 程序启动...")
-    logging.info(f"🎯 配置参数: MAX_ATTEMPT={MAX_ATTEMPT}, SLEEPTIME={SLEEPTIME}, ENABLE_SLIDER={ENABLE_SLIDER}")
     
     if action:
         wait_until(LOGIN_TIME)
@@ -159,31 +158,27 @@ def main(users, action=False):
 
     logging.info("========== 🎯 开始执行预约任务 ==========")
     
-    # 🔥 优化：串行执行，避免并发冲突
-    success_count = 0
-    total_count = len([u for u in users if u['username'] in session_cache])
+    # 🔥 优化：进一步减少并发数，每次最多2个用户同时执行任务
+    max_task_workers = min(len(users), 2)
     
-    for user in users:
-        if user['username'] in session_cache:
-            session = session_cache[user['username']]
-            logging.info(f"🔄 处理用户 {user['username']} 的任务...")
-            
+    with ThreadPoolExecutor(max_workers=max_task_workers) as executor:
+        future_to_user = {
+            executor.submit(process_user_tasks, session, users[i], action): user['username']
+            for i, user in enumerate(users) if (session := session_cache.get(user['username']))
+        }
+        
+        for future in as_completed(future_to_user):
+            username = future_to_user[future]
             try:
-                result = process_user_tasks(session, user, action)
+                result = future.result()
                 if result:
-                    success_count += 1
-                    logging.info(f"🎉 用户 {user['username']} 任务完成: 成功")
+                    logging.info(f"🎉 用户 {username} 的所有任务处理完毕，结果: 成功。")
                 else:
-                    logging.warning(f"⚠️ 用户 {user['username']} 任务完成: 部分失败")
-                    
-                # 用户间增加间隔
-                if user != users[-1]:  # 不是最后一个用户
-                    time.sleep(1.5)
-                    
+                    logging.warning(f"⚠️ 用户 {username} 的部分或全部任务处理失败。")
             except Exception as e:
-                logging.error(f"💥 处理用户 {user['username']} 时发生异常: {e}")
+                logging.error(f"💥 处理用户 {username} 的任务时发生严重异常: {e}")
 
-    logging.info(f"========== 🏁 任务完毕: {success_count}/{total_count} 用户成功 ==========")
+    logging.info("========== 🏁 所有预约任务处理完毕 ==========")
 
 
 def debug(users, action=False):
