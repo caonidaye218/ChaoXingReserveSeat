@@ -19,7 +19,7 @@ class reserve:
         self.submit_url = "https://office.chaoxing.com/data/apps/seat/submit"
         self.requests = requests.session()
         
-        # 🔥 使用从真实手机APP提取的请求头
+        # 使用从真实手机APP提取的请求头
         self.requests.headers.update({
             "User-Agent": "Mozilla/5.0 (Linux; Android 12; SM-G9980 Build/SP1A.210812.016; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/104.0.5112.97 Mobile Safari/537.36 com.chaoxing.mobile/ChaoXingStudy_3_5.2.2_android_phone_1066_28 (@Kalimdor)_a29ab810366347f49b83b87836d44e58",
             "X-Requested-With": "XMLHttpRequest",
@@ -46,7 +46,7 @@ class reserve:
                 logging.info(f"用户 {username} 登录成功")
                 return True, ""
             logging.error(f"用户 {username} 登录失败: {obj.get('msg2', '未知错误')}")
-            return False, obj.get("msg2", "未知登录错误")
+            return False, obj.get("msg2", "未知错误")
         except Exception as e:
             logging.error(f"登录异常: {e}")
             return False, str(e)
@@ -79,7 +79,7 @@ class reserve:
             parm = {
                 "roomId": str(roomid), "startTime": str(times[0]), "endTime": str(times[1]),
                 "day": day_str, "seatNum": str(seat).zfill(3), "captcha": "", "token": token,
-                "behaviorAnalysis": generate_behavior_analysis() # 🔥 每次都生成新的行为数据
+                "behaviorAnalysis": generate_behavior_analysis() # 每次都生成新的行为数据
             }
             parm["enc"] = enc(parm)
 
@@ -92,7 +92,7 @@ class reserve:
                 if result.get("success"):
                     return True
                 
-                # 🔥 智能重试逻辑
+                # 智能重试逻辑
                 if "人数过多" in msg or "请5分钟后" in msg:
                     wait = random.uniform(1, 3)
                     logging.warning(f"遇到“人数过多”，随机等待 {wait:.1f} 秒后重试...")
