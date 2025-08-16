@@ -26,14 +26,14 @@ get_current_dayofweek = lambda action: (
     else time.strftime("%A", time.localtime(time.time()))
 )
 
-# --- 🔥 全局配置 ---
-LOGIN_TIME = "16:19:00"
-RESERVE_TIME = "16:20:00"
+# --- 全局配置 ---
+LOGIN_TIME = "21:58:30"
+RESERVE_TIME = "22:00:00"
 ENDTIME = "22:02:00"
 
-SLEEPTIME = 0.8  # 增加基础等待间隔
+SLEEPTIME = 0.8
 ENABLE_SLIDER = True
-MAX_ATTEMPT = 8  # 增加最大尝试次数
+MAX_ATTEMPT = 8
 RESERVE_NEXT_DAY = False # 固定预约当天
 
 def wait_until(target_time_str, action):
@@ -50,9 +50,7 @@ def _iter_todays_tasks(user_dict, current_dayofweek):
             yield t.get("time"), t.get("roomid"), t.get("seatid")
 
 def login_and_reserve(users, usernames, passwords, action, success_states=None):
-    """
-    按顺序处理每个用户，但对单个用户的多个任务进行并行预约。
-    """
+    """按顺序处理每个用户，但对单个用户的多个任务进行并行预约"""
     if success_states is None:
         success_states = {}
 
@@ -102,7 +100,7 @@ def login_and_reserve(users, usernames, passwords, action, success_states=None):
                 try:
                     if future.result():
                         success_states[username][tuple(times)] = True
-                        logging.info(f"� 并行任务成功: {username} -- {times}")
+                        logging.info(f"🎉 并行任务成功: {username} -- {times}")
                     else:
                         success_states[username][tuple(times)] = False
                 except Exception as e:
@@ -148,7 +146,6 @@ def main(users, action=False):
             logging.info("🎉 所有需要预约的用户均已成功！")
             return
         
-        # 🔥 最终优化：在每轮重试之间加入一个更长的、随机的延迟
         wait_time = random.uniform(2, 5)
         logging.info(f"--- 轮间等待 {wait_time:.1f} 秒后进行下一轮尝试 ---")
         time.sleep(wait_time)
@@ -181,4 +178,3 @@ if __name__ == "__main__":
         main(usersdata, args.action)
     else:
         debug(usersdata, args.action)
-�
