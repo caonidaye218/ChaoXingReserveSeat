@@ -32,32 +32,36 @@ def enc(submit_info):
     return md5(seq.encode("utf-8")).hexdigest()
 
 def generate_behavior_analysis():
-    """生成高仿真度的用户行为分析数据"""
+    """生成包含多种行为的、高仿真度的用户行为分析数据"""
     timestamp = int(time.time() * 1000)
     
-    # 模拟鼠标移动
+    # 1. 模拟鼠标移动轨迹 (moves)
     mouse_movements = []
     x, y = random.randint(300, 700), random.randint(100, 300)
     t = timestamp - random.randint(20000, 40000)
-    for _ in range(random.randint(15, 30)):
-        x += random.randint(-30, 30)
-        y += random.randint(-20, 20)
-        t += random.randint(50, 200)
+    for _ in range(random.randint(20, 40)):
+        x += random.randint(-40, 40)
+        y += random.randint(-30, 30)
+        t += random.randint(50, 250)
         mouse_movements.append(f"{max(0, x)},{max(0, y)},{t}")
 
-    # 模拟鼠标点击
-    clicks = [f"{random.randint(200, 800)},{random.randint(150, 500)},{timestamp - random.randint(5000, 15000)}"]
+    # 2. 模拟鼠标点击 (clicks)
+    clicks = []
+    for _ in range(random.randint(2, 5)):
+        clicks.append(f"{random.randint(100, 900)},{random.randint(100, 600)},{timestamp - random.randint(3000, 30000)}")
 
-    # 模拟页面聚焦
-    focus = f"{timestamp - random.randint(10000, 30000)},{timestamp - random.randint(1000, 5000)}"
+    # 3. 模拟页面聚焦时间 (focus)
+    focus = f"{timestamp - random.randint(15000, 50000)},{timestamp - random.randint(1000, 5000)}"
 
+    # 4. 拼接所有行为数据
     behavior_parts = [
         f"moves={'|'.join(mouse_movements)}",
         f"clicks={'|'.join(clicks)}",
         f"focus={focus}",
         f"ts={timestamp}",
-        f"r={random.random():.16f}",
+        f"r={random.random():.16f}", # 高精度随机数
         "v=1.0",
     ]
     
+    # 5. URL编码
     return urllib.parse.quote_plus('&'.join(behavior_parts))
