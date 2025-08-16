@@ -3,6 +3,7 @@ import time
 import argparse
 import os
 import logging
+import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- 日志记录配置 ---
@@ -101,7 +102,7 @@ def login_and_reserve(users, usernames, passwords, action, success_states=None):
                 try:
                     if future.result():
                         success_states[username][tuple(times)] = True
-                        logging.info(f"🎉 并行任务成功: {username} -- {times}")
+                        logging.info(f"� 并行任务成功: {username} -- {times}")
                     else:
                         success_states[username][tuple(times)] = False
                 except Exception as e:
@@ -146,7 +147,11 @@ def main(users, action=False):
         if successful_users >= today_user_num:
             logging.info("🎉 所有需要预约的用户均已成功！")
             return
-        time.sleep(1)
+        
+        # 🔥 最终优化：在每轮重试之间加入一个更长的、随机的延迟
+        wait_time = random.uniform(2, 5)
+        logging.info(f"--- 轮间等待 {wait_time:.1f} 秒后进行下一轮尝试 ---")
+        time.sleep(wait_time)
 
     logging.warning(f"🏁 抢座时间已过 ({ENDTIME})，程序结束。")
 
@@ -176,3 +181,4 @@ if __name__ == "__main__":
         main(usersdata, args.action)
     else:
         debug(usersdata, args.action)
+�
