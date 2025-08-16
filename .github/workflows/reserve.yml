@@ -4,7 +4,7 @@ name: auto_Reserve
 
 on:
   schedule:
-    - cron: "59 21 * * *" # 每天早上5:59启动（北京时间）
+    - cron: "30 13 * * *" # 每天晚上9:30启动（北京时间）
   workflow_dispatch:
   
 jobs:
