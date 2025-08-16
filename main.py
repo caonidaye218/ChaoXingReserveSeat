@@ -180,8 +180,7 @@ def main(users, action=False):
     
     # 等待启动时间
     while current_time < START_TIME:
-        logging.info(f"Waiting for start time {START_TIME}, current time: {current_time}")
-        time.sleep(10)  # 每10秒检查一次
+        time.sleep(0.1)  # 避免CPU空转
         current_time = get_current_time(action)
     
     logging.info(f"🚀 Start time reached! Beginning reservation process at {current_time}")
