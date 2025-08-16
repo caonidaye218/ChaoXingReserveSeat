@@ -25,15 +25,14 @@ get_current_dayofweek = lambda action: (
 )
 
 # --- 🔥 全局配置 ---
-LOGIN_TIME = "16:9:30"
-RESERVE_TIME = "16:10:00"
-ENDTIME = "16:12:00"
+LOGIN_TIME = "21:58:30"
+RESERVE_TIME = "22:00:00"
+ENDTIME = "22:02:00"
 
-SLEEPTIME = 0.2
+SLEEPTIME = 0.8  # 增加每次尝试的间隔，降低请求频率
 ENABLE_SLIDER = True
-MAX_ATTEMPT = 5
-# 🔥 关键修改：确保脚本预约当天
-RESERVE_NEXT_DAY = False
+MAX_ATTEMPT = 8  # 增加最大尝试次数
+RESERVE_NEXT_DAY = False # 固定预约当天
 
 def wait_until(target_time_str, action):
     """等待直到指定的时间"""
@@ -42,19 +41,14 @@ def wait_until(target_time_str, action):
         time.sleep(0.5)
     logging.info(f"已到达指定时间 {target_time_str}，继续执行。")
 
-
 def _iter_todays_tasks(user_dict, current_dayofweek):
     """遍历并返回今天需要执行的任务"""
-    tasks = user_dict.get("tasks", [])
-    for t in tasks:
+    for t in user_dict.get("tasks", []):
         if current_dayofweek in t.get("daysofweek", []):
             yield t.get("time"), t.get("roomid"), t.get("seatid")
 
-
 def login_and_reserve(users, usernames, passwords, action, success_list=None):
-    """
-    按顺序处理每个用户，如果用户有多个任务，会依次尝试。
-    """
+    """按顺序处理每个用户"""
     if success_list is None:
         success_list = [False] * len(users)
 
@@ -80,12 +74,14 @@ def login_and_reserve(users, usernames, passwords, action, success_list=None):
             enable_slider=ENABLE_SLIDER,
             reserve_next_day=RESERVE_NEXT_DAY,
         )
-        s.login(username, password)
+        login_ok, _ = s.login(username, password)
+        if not login_ok:
+            continue
 
         for times, roomid, seatid in todays_tasks:
             if isinstance(seatid, str):
                 seatid = [seatid]
-
+            
             logging.info(f"----------- {username} -- {times} -- {seatid} try -----------")
             suc = s.submit(times, roomid, seatid, action)
             if suc:
@@ -95,22 +91,18 @@ def login_and_reserve(users, usernames, passwords, action, success_list=None):
 
     return success_list
 
-
 def main(users, action=False):
     """主执行函数"""
     logging.info(f"🎬 程序启动，将在 {LOGIN_TIME} 开始登录...")
     wait_until(LOGIN_TIME, action)
 
-    usernames, passwords = None, None
-    if action:
-        usernames, passwords = get_user_credentials(action)
+    usernames, passwords = get_user_credentials(action) if action else (None, None)
 
     wait_until(RESERVE_TIME, action)
     logging.info("========== 🎯 开始执行预约任务 ==========")
 
     attempt_times = 0
     success_list = None
-
     current_dayofweek = get_current_dayofweek(action)
     today_reservation_num = sum(1 for u in users if any(_iter_todays_tasks(u, current_dayofweek)))
 
@@ -121,45 +113,33 @@ def main(users, action=False):
     while get_current_time(action) < ENDTIME:
         attempt_times += 1
         try:
-            success_list = login_and_reserve(
-                users, usernames, passwords, action, success_list
-            )
+            success_list = login_and_reserve(users, usernames, passwords, action, success_list)
         except Exception as e:
             logging.error(f"在第 {attempt_times} 轮尝试中发生错误: {e}")
 
         successful_count = sum(1 for s in success_list if s)
-        logging.info(
-            f"第 {attempt_times} 轮尝试结束, "
-            f"成功 {successful_count}/{today_reservation_num}, "
-            f"当前时间 {get_current_time(action)}"
-        )
+        logging.info(f"第 {attempt_times} 轮尝试结束, 成功 {successful_count}/{today_reservation_num}, 当前时间 {get_current_time(action)}")
 
         if successful_count >= today_reservation_num:
             logging.info("🎉 所有需要预约的用户均已成功！")
             return
-
+        
         time.sleep(1)
 
     logging.warning(f"🏁 抢座时间已过 ({ENDTIME})，程序结束。")
 
-
 def debug(users, action=False):
     """调试模式"""
     logging.info("--- 🔧 调试模式启动 ---")
-    usernames, passwords = None, None
-    if action:
-        usernames, passwords = get_user_credentials(action)
+    usernames, passwords = get_user_credentials(action) if action else (None, None)
     login_and_reserve(users, usernames, passwords, action)
     logging.info("--- 🔧 调试模式结束 ---")
-
 
 if __name__ == "__main__":
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
     parser = argparse.ArgumentParser(prog="Chao Xing seat auto reserve")
     parser.add_argument("-u", "--user", default=config_path, help="user config file")
-    parser.add_argument(
-        "-m", "--method", default="reserve", choices=["reserve", "debug"]
-    )
+    parser.add_argument("-m", "--method", default="reserve", choices=["reserve", "debug"])
     parser.add_argument("-a", "--action", action="store_true")
     args = parser.parse_args()
 
