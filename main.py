@@ -27,6 +27,7 @@ get_current_dayofweek = lambda action: (
 
 SLEEPTIME = 0.2  # 每次抢座的间隔
 ENDTIME = "22:01:00"  # 根据学校的预约座位时间+1min即可
+START_TIME = "22:00:00"  # 程序启动时间，22点准时启动
 
 ENABLE_SLIDER = True  # 是否有滑块验证
 MAX_ATTEMPT = 5  # 最大尝试次数
@@ -175,7 +176,16 @@ def login_and_reserve(users, usernames, passwords, action, success_list=None):
 
 def main(users, action=False):
     current_time = get_current_time(action)
-    logging.info(f"start time {current_time}, action {'on' if action else 'off'}")
+    logging.info(f"Program started at {current_time}, action {'on' if action else 'off'}")
+    
+    # 等待启动时间
+    while current_time < START_TIME:
+        logging.info(f"Waiting for start time {START_TIME}, current time: {current_time}")
+        time.sleep(10)  # 每10秒检查一次
+        current_time = get_current_time(action)
+    
+    logging.info(f"🚀 Start time reached! Beginning reservation process at {current_time}")
+    
     attempt_times = 0
     # 🔥 新增：连续失败计数器
     consecutive_fail_count = 0
