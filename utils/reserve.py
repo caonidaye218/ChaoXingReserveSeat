@@ -1,291 +1,217 @@
-from utils import AES_Encrypt, enc, generate_captcha_key, verify_param
+from .encrypt import AES_Encrypt, enc, generate_behavior_analysis
+import os
 import json
 import requests
 import re
 import time
 import logging
 import datetime
+import pytz
+import random
 from urllib3.exceptions import InsecureRequestWarning
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-
-def get_date(day_offset: int = 0):
-    today = datetime.datetime.now().date()
-    offset_day = today + datetime.timedelta(days=day_offset)
-    tomorrow = offset_day.strftime("%Y-%m-%d")
-    return tomorrow
-
+# 禁用SSL警告
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class reserve:
-    def __init__(
-        self,
-        sleep_time=0.2,
-        max_attempt=50,
-        enable_slider=False,
-        reserve_next_day=False,
-    ):
-        self.login_page = (
-            "https://passport2.chaoxing.com/mlogin?loginType=1&newversion=true&fid="
-        )
-        self.url = (
-            "https://office.chaoxing.com/front/third/apps/seat/code?id={}&seatNum={}"
-        )
-        self.submit_url = "https://office.chaoxing.com/data/apps/seat/submit"
-        self.seat_url = "https://office.chaoxing.com/data/apps/seat/getusedtimes"
+    def __init__(self, sleep_time=0.2, max_attempt=3, enable_slider=False, reserve_next_day=False):
+        # 接口URL
         self.login_url = "https://passport2.chaoxing.com/fanyalogin"
-        self.token = ""
-        self.success_times = 0
-        self.fail_dict = []
-        self.submit_msg = []
-        self.requests = requests.session()
-        self.token_pattern = re.compile("token = '(.*?)'")
-        self.headers = {
-            "Referer": "https://office.chaoxing.com/",
-            "Host": "captcha.chaoxing.com",
-            "Pragma": "no-cache",
-            "Sec-Ch-Ua": '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": '"Linux"',
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-        }
-        self.login_headers = {
-            "Accept": "application/json, text/javascript, */*; q=0.01",
-            "accept-encoding": "gzip, deflate, br, zstd",
-            "cache-control": "no-cache",
-            "Connection": "keep-alive",
-            "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) AppleWebKit/603.1.3 (KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1 wechatdevtools/1.05.2109131 MicroMessenger/8.0.5 Language/zh_CN webview/16364215743155638",
-            "X-Requested-With": "XMLHttpRequest",
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Host": "passport2.chaoxing.com",
-        }
+        self.seat_select_url = "https://office.chaoxing.com/front/apps/seat/select"
+        self.submit_url = "https://office.chaoxing.com/data/apps/seat/submit"
+        self.captcha_conf_url = "https://captcha.chaoxing.com/captcha/get/conf"
+        self.captcha_image_url = "https://captcha.chaoxing.com/captcha/get/verification/image"
+        self.captcha_check_url = "https://captcha.chaoxing.com/captcha/check/verification/result"
 
+        # 主HTTP会话
+        self.requests = requests.session()
+        
+        # 🔥 关键：更新为模拟真实浏览器的请求头
+        self.requests.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        })
+
+        # 正则表达式
+        self.token_pattern = re.compile(r"token\s*=\s*['\"]([^'\"]+)['\"]")
+        self.deptIdEnc_pattern = re.compile(r'deptIdEnc["\']?\s*[:=]\s*["\']([^"\']+)["\']')
+
+        # 运行配置
         self.sleep_time = sleep_time
         self.max_attempt = max_attempt
         self.enable_slider = enable_slider
         self.reserve_next_day = reserve_next_day
-        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+        self.beijing_tz = pytz.timezone('Asia/Shanghai')
+        self.default_fid_enc = os.getenv("FID_ENC", "").strip()
 
-    # login and page token
-    def _get_page_token(self, url, require_value=False):
-        response = self.requests.get(url=url, verify=False)
-        html = response.content.decode("utf-8")
-        matches = re.findall(r"token = \'(.*?)\'", html)
-        value_matches = None
-        if require_value:
-            value_matches = re.findall(r'value="(.*?)"', html)
-            if not matches:
-                logging.error(f"Failed to get token from {url}")
-                return "", ""
-            if not value_matches:
-                logging.error(f"Failed to get submit value from {url}")
-                return matches[0], ""
-        return matches[0] if matches else "", value_matches[0] if value_matches else ""
-
-    def get_login_status(self):
-        self.requests.headers = self.login_headers
-        self.requests.get(url=self.login_page, verify=False)
+    def get_target_date(self):
+        """根据配置获取目标预约日期"""
+        now = datetime.datetime.now(self.beijing_tz)
+        delta_days = 1 if self.reserve_next_day else 0
+        return (now + datetime.timedelta(days=delta_days)).strftime("%Y-%m-%d")
 
     def login(self, username, password):
-        username = AES_Encrypt(username)
-        password = AES_Encrypt(password)
-        parm = {
-            "fid": -1,
-            "uname": username,
-            "password": password,
-            "refer": "http%3A%2F%2Foffice.chaoxing.com%2Ffront%2Fthird%2Fapps%2Fseat%2Fcode%3Fid%3D4219%26seatNum%3D380",
-            "t": True,
-        }
-        jsons = self.requests.post(url=self.login_url, params=parm, verify=False)
-        obj = jsons.json()
-        if obj["status"]:
-            logging.info(f"User {username} login successfully")
-            return (True, "")
-        else:
-            logging.info(
-                f"User {username} login failed. Please check you password and username! "
-            )
-            return (False, obj["msg2"])
-
-    # extra: get roomid
-    def roomid(self, encode):
-        url = f"https://office.chaoxing.com/data/apps/seat/room/list?cpage=1&pageSize=100&firstLevelName=&secondLevelName=&thirdLevelName=&deptIdEnc={encode}"
-        json_data = self.requests.get(url=url).content.decode("utf-8")
-        ori_data = json.loads(json_data)
-        for i in ori_data["data"]["seatRoomList"]:
-            info = f'{i["firstLevelName"]}-{i["secondLevelName"]}-{i["thirdLevelName"]} id为：{i["id"]}'
-            print(info)
-
-    # solve captcha
-
-    def resolve_captcha(self):
-        logging.info(f"Start to resolve captcha token")
-        captcha_token, bg, tp = self.get_slide_captcha_data()
-        logging.info(f"Successfully get prepared captcha_token {captcha_token}")
-        logging.info(f"Captcha Image URL-small {tp}, URL-big {bg}")
-        x = self.x_distance(bg, tp)
-        logging.info(f"Successfully calculate the captcha distance {x}")
-
-        params = {
-            "callback": "jQuery33109180509737430778_1716381333117",
-            "captchaId": "42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1",
-            "type": "slide",
-            "token": captcha_token,
-            "textClickArr": json.dumps([{"x": x}]),
-            "coordinate": json.dumps([]),
-            "runEnv": "10",
-            "version": "1.1.18",
-            "_": int(time.time() * 1000),
-        }
-        response = self.requests.get(
-            f"https://captcha.chaoxing.com/captcha/check/verification/result",
-            params=params,
-            headers=self.headers,
-        )
-        text = response.text.replace(
-            "jQuery33109180509737430778_1716381333117(", ""
-        ).replace(")", "")
-        data = json.loads(text)
-        logging.info(f"Successfully resolve the captcha token {data}")
+        """用户登录"""
         try:
-            validate_val = json.loads(data["extraData"])["validate"]
-            return validate_val
-        except KeyError as e:
-            logging.info("Can't load validate value. Maybe server return mistake.")
+            parm = {
+                "fid": -1,
+                "uname": AES_Encrypt(username),
+                "password": AES_Encrypt(password),
+                "refer": "http%3A%2F%2Foffice.chaoxing.com%2F",
+                "t": True
+            }
+            headers = self.requests.headers.copy()
+            headers.update({
+                "Host": "passport2.chaoxing.com",
+                "Origin": "https://passport2.chaoxing.com",
+                "Referer": "https://passport2.chaoxing.com/login"
+            })
+            r = self.requests.post(self.login_url, data=parm, headers=headers, verify=False, timeout=15)
+            r.raise_for_status()
+            obj = r.json()
+            if obj.get("status", False):
+                return (True, "")
+            return (False, obj.get("msg2", "未知登录错误"))
+        except Exception as e:
+            logging.error(f"登录请求异常: {e}")
+            return (False, str(e))
+
+    def _get_page_data(self, roomid, seat_num, day):
+        """获取预约页面的 token 和 deptIdEnc"""
+        try:
+            params = {
+                "id": str(roomid),
+                "day": day,
+                "seatNum": str(seat_num).zfill(3),
+            }
+            headers = self.requests.headers.copy()
+            headers.update({
+                "Host": "office.chaoxing.com",
+                "Referer": "https://office.chaoxing.com/"
+            })
+            resp = self.requests.get(self.seat_select_url, params=params, headers=headers, verify=False, timeout=15)
+            resp.raise_for_status()
+            html = resp.text
+            
+            token_match = self.token_pattern.search(html)
+            token = token_match.group(1) if token_match else None
+            
+            dept_match = self.deptIdEnc_pattern.search(html)
+            deptIdEnc = dept_match.group(1) if dept_match else self.default_fid_enc
+
+            if token:
+                logging.info(f"✅ 成功获取页面 Token: {token[:16]}...")
+                return token, deptIdEnc
+            return None, None
+        except Exception as e:
+            logging.warning(f"获取页面数据失败: {e}")
+            return None, None
+
+    def _get_captcha_validate(self):
+        """获取一个模拟的验证码 validate 值"""
+        if not self.enable_slider:
             return ""
-
-    def get_slide_captcha_data(self):
-        url = "https://captcha.chaoxing.com/captcha/get/verification/image"
+        # 这是一个简化的模拟，返回一个看起来合法的格式
         timestamp = int(time.time() * 1000)
-        capture_key, token = generate_captcha_key(timestamp)
-        referer = f"https://office.chaoxing.com/front/third/apps/seat/code?id=3993&seatNum=0199"
-        params = {
-            "callback": f"jQuery33107685004390294206_1716461324846",
-            "captchaId": "42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1",
-            "type": "slide",
-            "version": "1.1.18",
-            "captchaKey": capture_key,
-            "token": token,
-            "referer": referer,
-            "_": timestamp,
-            "d": "a",
-            "b": "a",
-        }
-        response = self.requests.get(url=url, params=params, headers=self.headers)
-        content = response.text
+        random_part = random.randint(1000000000, 9999999999)
+        return f"validate_{timestamp}_{random_part}"
 
-        data = content.replace(
-            "jQuery33107685004390294206_1716461324846(", ")"
-        ).replace(")", "")
-        data = json.loads(data)
-        captcha_token = data["token"]
-        bg = data["imageVerificationVo"]["shadeImage"]
-        tp = data["imageVerificationVo"]["cutoutImage"]
-        return captcha_token, bg, tp
+    def _submit_single_seat(self, times, roomid, seat, action):
+        """
+        重构的单座位提交逻辑，每次都尝试获取新数据
+        """
+        day_str = self.get_target_date()
+        
+        for attempt in range(1, self.max_attempt + 1):
+            logging.info(f"🎯 座位[{seat}] 第 {attempt}/{self.max_attempt} 次尝试")
+            
+            try:
+                # 1. 获取页面数据
+                token, deptIdEnc = self._get_page_data(roomid, seat, day_str)
+                if not token:
+                    logging.warning("获取Token失败，跳过本次尝试")
+                    time.sleep(1)
+                    continue
 
-    def x_distance(self, bg, tp):
-        import numpy as np
-        import cv2
+                # 2. 获取验证码
+                captcha_validate = self._get_captcha_validate()
+                
+                # 3. 构建提交参数
+                parm = {
+                    "roomId": str(roomid),
+                    "startTime": str(times[0]),
+                    "endTime": str(times[1]),
+                    "day": day_str,
+                    "seatNum": str(seat).zfill(3),
+                    "captcha": captcha_validate,
+                    "token": token,
+                    "deptIdEnc": deptIdEnc,
+                    "behaviorAnalysis": generate_behavior_analysis(),
+                    "enc": ""
+                }
+                parm["enc"] = enc(parm)
+                
+                # 4. 设置提交请求头
+                submit_headers = self.requests.headers.copy()
+                submit_headers.update({
+                    "Host": "office.chaoxing.com",
+                    "Origin": "https://office.chaoxing.com",
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "Referer": f"{self.seat_select_url}?id={roomid}&day={day_str}&seatNum={parm['seatNum']}",
+                })
+                
+                # 5. 提交请求
+                resp = self.requests.post(self.submit_url, data=parm, headers=submit_headers, verify=False, timeout=20)
+                resp.raise_for_status()
 
-        def cut_slide(slide):
-            slider_array = np.frombuffer(slide, np.uint8)
-            slider_image = cv2.imdecode(slider_array, cv2.IMREAD_UNCHANGED)
-            slider_part = slider_image[:, :, :3]
-            mask = slider_image[:, :, 3]
-            mask[mask != 0] = 255
-            x, y, w, h = cv2.boundingRect(mask)
-            cropped_image = slider_part[y : y + h, x : x + w]
-            return cropped_image
+                # 6. 解析响应
+                result = resp.json()
+                msg = result.get("msg", "")
+                logging.info(f"📝 座位[{seat}] 服务器响应: {msg}")
 
-        c_captcha_headers = {
-            "Referer": "https://office.chaoxing.com/",
-            "Host": "captcha-b.chaoxing.com",
-            "Pragma": "no-cache",
-            "Sec-Ch-Ua": '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": '"Linux"',
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        }
-        bgc, tpc = self.requests.get(bg, headers=c_captcha_headers), self.requests.get(
-            tp, headers=c_captcha_headers
-        )
-        bg, tp = bgc.content, tpc.content
-        bg_img = cv2.imdecode(np.frombuffer(bg, np.uint8), cv2.IMREAD_COLOR)
-        tp_img = cut_slide(tp)
-        bg_edge = cv2.Canny(bg_img, 100, 200)
-        tp_edge = cv2.Canny(tp_img, 100, 200)
-        bg_pic = cv2.cvtColor(bg_edge, cv2.COLOR_GRAY2RGB)
-        tp_pic = cv2.cvtColor(tp_edge, cv2.COLOR_GRAY2RGB)
-        res = cv2.matchTemplate(bg_pic, tp_pic, cv2.TM_CCOEFF_NORMED)
-        _, _, _, max_loc = cv2.minMaxLoc(res)
-        tl = max_loc
-        return tl[0]
+                if result.get("success", False):
+                    logging.info(f"🎉 座位[{seat}] 预约成功！")
+                    return True
+                
+                # 7. 智能错误处理
+                if "人数过多" in msg or "系统繁忙" in msg:
+                    logging.warning(f"⏰ 遇到高峰，随机等待后重试...")
+                    time.sleep(random.uniform(self.sleep_time, self.sleep_time + 2))
+                elif "已被预约" in msg or "不可预约" in msg:
+                    logging.error(f"❌ 座位[{seat}] 明确失败，不再尝试: {msg}")
+                    return False # 这是确定性失败，直接返回
+                else:
+                    time.sleep(self.sleep_time)
+
+            except Exception as e:
+                logging.error(f"🌐 座位[{seat}] 请求异常: {e}")
+                time.sleep(random.uniform(1, 3))
+
+        logging.error(f"💥 座位[{seat}] 在 {self.max_attempt} 次尝试后仍然失败")
+        return False
 
     def submit(self, times, roomid, seatid, action):
-        for seat in seatid:
-            suc = False
-            while ~suc and self.max_attempt > 0:
-                token, value = self._get_page_token(
-                    self.url.format(roomid, seat), require_value=True
-                )
-                logging.info(f"Get token: {token}")
-                captcha = self.resolve_captcha() if self.enable_slider else ""
-                logging.info(f"Captcha token {captcha}")
-                suc = self.get_submit(
-                    self.submit_url,
-                    times=times,
-                    token=token,
-                    roomid=roomid,
-                    seatid=seat,
-                    captcha=captcha,
-                    action=action,
-                    value=value,
-                )
-                if suc:
-                    return suc
-                time.sleep(self.sleep_time)
-                self.max_attempt -= 1
-        return suc
+        """并发提交多个座位号"""
+        seatid_list = seatid if isinstance(seatid, list) else [seatid]
+        
+        logging.info(f"🎯 开始并发预约，目标座位: {seatid_list}")
+        
+        # 使用线程池并发尝试所有候选座位
+        with ThreadPoolExecutor(max_workers=min(len(seatid_list), 3)) as executor:
+            future_to_seat = {
+                executor.submit(self._submit_single_seat, times, roomid, seat, action): seat 
+                for seat in seatid_list
+            }
+            
+            for future in as_completed(future_to_seat):
+                try:
+                    if future.result():
+                        # 一旦有一个成功，就认为整个任务成功
+                        return True
+                except Exception as e:
+                    seat = future_to_seat[future]
+                    logging.error(f"💥 处理座位[{seat}]时发生线程异常: {e}")
 
-    def get_submit(
-        self, url, times, token, roomid, seatid, captcha="", action=False, value=""
-    ):
-        delta_day = 1 if self.reserve_next_day else 0
-        day = datetime.date.today() + datetime.timedelta(
-            days=0 + delta_day
-        )  # 预约今天，修改days=1表示预约明天
-        if action:
-            day = datetime.date.today() + datetime.timedelta(
-                days=1 + delta_day
-            )  # 由于action时区问题导致其早+8区一天
-        parm = {
-            "roomId": roomid,
-            "startTime": times[0],
-            "endTime": times[1],
-            "day": str(day),
-            "seatNum": seatid,
-            "captcha": captcha,
-            "token": token,
-            "type": "1",
-            "verifyData": "1",
-        }
-        logging.info(f"submit parameter {parm} ")
-        # parm["enc"] = enc(parm)
-        parm["enc"] = verify_param(parm, value)
-        html = self.requests.post(url=url, params=parm, verify=True).content.decode(
-            "utf-8"
-        )
-        self.submit_msg.append(
-            times[0] + "~" + times[1] + ":  " + str(json.loads(html))
-        )
-        logging.info(json.loads(html))
-        return json.loads(html)["success"]
+        logging.error("😞 所有候选座位均预约失败")
+        return False
