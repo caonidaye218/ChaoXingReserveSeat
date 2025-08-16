@@ -39,29 +39,40 @@ def generate_behavior_analysis():
     mouse_movements = []
     x, y = random.randint(300, 700), random.randint(100, 300)
     t = timestamp - random.randint(20000, 40000)
-    for _ in range(random.randint(20, 40)):
-        x += random.randint(-40, 40)
-        y += random.randint(-30, 30)
-        t += random.randint(50, 250)
+    for _ in range(random.randint(25, 45)):
+        x += random.randint(-50, 50)
+        y += random.randint(-40, 40)
+        t += random.randint(40, 200)
         mouse_movements.append(f"{max(0, x)},{max(0, y)},{t}")
 
     # 2. 模拟鼠标点击 (clicks)
     clicks = []
-    for _ in range(random.randint(2, 5)):
-        clicks.append(f"{random.randint(100, 900)},{random.randint(100, 600)},{timestamp - random.randint(3000, 30000)}")
+    for _ in range(random.randint(3, 6)):
+        clicks.append(f"{random.randint(100, 900)},{random.randint(100, 600)},{timestamp - random.randint(3000, 35000)}")
 
     # 3. 模拟页面聚焦时间 (focus)
-    focus = f"{timestamp - random.randint(15000, 50000)},{timestamp - random.randint(1000, 5000)}"
+    focus = f"{timestamp - random.randint(25000, 60000)},{timestamp - random.randint(1000, 5000)}"
 
-    # 4. 拼接所有行为数据
+    # 4. 模拟页面滚动 (scrolls)
+    scrolls = []
+    scroll_y = 0
+    scroll_t = timestamp - random.randint(15000, 30000)
+    for _ in range(random.randint(2, 5)):
+        scroll_delta = random.randint(50, 200)
+        scroll_y += scroll_delta
+        scroll_t += random.randint(1000, 3000)
+        scrolls.append(f"0,{scroll_delta},{scroll_t}")
+
+    # 5. 拼接所有行为数据
     behavior_parts = [
         f"moves={'|'.join(mouse_movements)}",
         f"clicks={'|'.join(clicks)}",
+        f"scrolls={'|'.join(scrolls)}",
         f"focus={focus}",
         f"ts={timestamp}",
-        f"r={random.random():.16f}", # 高精度随机数
+        f"r={random.random():.16f}",
         "v=1.0",
     ]
     
-    # 5. URL编码
+    # 6. URL编码
     return urllib.parse.quote_plus('&'.join(behavior_parts))
