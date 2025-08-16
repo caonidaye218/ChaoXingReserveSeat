@@ -5,18 +5,6 @@
             "password": "用户1密码",
             "tasks": [
                 {
-                    "time": ["18:00", "19:00"],
-                    "roomid": "6913",
-                    "seatid": ["003"],
-                    "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday" , "Sunday"]
-                },
-                {
-                    "time": ["19:00", "20:00"],
-                    "roomid": "6913",
-                    "seatid": ["003"],
-                    "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday" , "Sunday"]
-                },
-                {
                     "time": ["20:00", "21:00"],
                     "roomid": "6913",
                     "seatid": ["003"],
