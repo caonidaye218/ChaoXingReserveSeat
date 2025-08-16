@@ -25,8 +25,8 @@ get_current_dayofweek = lambda action: (
 )
 
 # --- 🔥 全局配置 ---
-LOGIN_TIME = "21:58:30"
-RESERVE_TIME = "22:00:00"
+LOGIN_TIME = "16:13:30"
+RESERVE_TIME = "16:13:00"
 ENDTIME = "22:02:00"
 
 SLEEPTIME = 0.8  # 增加每次尝试的间隔，降低请求频率
