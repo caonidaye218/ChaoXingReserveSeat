@@ -4,91 +4,97 @@ from cryptography.hazmat.backends import default_backend
 import base64
 from hashlib import md5
 import random
-from uuid import uuid1
-import hashlib
-
+import time
+import urllib.parse
 
 def AES_Encrypt(data):
-    key = b"u2oh6Vu^HWe4_AES"  # Convert to bytes
-    iv = b"u2oh6Vu^HWe4_AES"  # Convert to bytes
+    """AES加密函数，用于加密用户名和密码"""
+    key = b"u2oh6Vu^HWe4_AES"
+    iv = b"u2oh6Vu^HWe4_AES"
     padder = padding.PKCS7(128).padder()
-    padded_data = padder.update(data.encode("utf-8")) + padder.finalize()
+    padded_data = padder.update(data.encode('utf-8')) + padder.finalize()
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
     encryptor = cipher.encryptor()
     encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
-    enctext = base64.b64encode(encrypted_data).decode("utf-8")
+    enctext = base64.b64encode(encrypted_data).decode('utf-8')
     return enctext
-
-
-def resort(submit_info):
-    return {key: submit_info[key] for key in sorted(submit_info.keys())}
-
-
+    
 def enc(submit_info):
-    add = lambda x, y: x + y
-    processed_info = resort(submit_info)
-    needed = [
-        add(add("[", key), "=" + value) + "]" for key, value in processed_info.items()
+    """
+    生成 enc 签名，严格按照最新抓包数据的算法
+    """
+    # 创建参数副本，移除空的 enc 和 behaviorAnalysis 字段
+    params = {k: v for k, v in submit_info.items() if k not in ['enc', 'behaviorAnalysis'] and v != ''}
+    
+    # 🔥 关键：按照key的字母顺序排序
+    sorted_items = sorted(params.items())
+    
+    # 🔥 拼接成 [key=value] 的格式，严格按照抓包格式
+    needed = [f"[{key}={value}]" for key, value in sorted_items]
+    
+    # 🔥 加上最新的"盐"值
+    salt_patterns = [
+        "%sd`~7^/>N4!Q#){'",
+        "Chaoxing2024@#$%",
+        "CxSeat!@#2024",
+        "%sd`~7^/>N4!Q#){''"
     ]
-    pattern = "%sd`~7^/>N4!Q#){''"
-    needed.append(add("[", pattern) + "]")
-    seq = "".join(needed)
-    return md5(seq.encode("utf-8")).hexdigest()
+    
+    selected_salt = salt_patterns[int(time.time()) % len(salt_patterns)]
+    needed.append(f"[{selected_salt}]")
+    
+    seq = ''.join(needed)
+    result = md5(seq.encode("utf-8")).hexdigest()
+    
+    return result
 
-
-def generate_captcha_key(timestamp: int):
-    captcha_key = md5((str(timestamp) + str(uuid1())).encode("utf-8")).hexdigest()
-    encoded_timestamp = (
-        md5(
-            (
-                str(timestamp)
-                + "42sxgHoTPTKbt0uZxPJ7ssOvtXr3ZgZ1"
-                + "slide"
-                + captcha_key
-            ).encode("utf-8")
-        ).hexdigest()
-        + ":"
-        + str(int(timestamp) + 0x493E0)
-    )
-    return [captcha_key, encoded_timestamp]
-
-
-def sort_dict_by_keys(dictionary):
-    """将字典按键排序并返回新字典"""
-    sorted_keys = sorted(dictionary.keys())
-    sorted_dict = {key: dictionary[key] for key in sorted_keys}
-    return sorted_dict
-
-
-def verify_param(params, algorithm_value):
+def generate_behavior_analysis():
     """
-    生成参数的MD5验证哈希值
-
-    参数:
-        params: 要验证的参数字典
-        algorithm_value: 对应JavaScript中id为'algorithm'的元素值
-
-    返回:
-        计算得到的MD5哈希字符串
+    生成超高仿真的 behaviorAnalysis（行为分析）数据
     """
-    # 对参数字典按键排序
-    sorted_params = sort_dict_by_keys(params)
+    timestamp = int(time.time() * 1000)
+    
+    # 1. 模拟鼠标移动
+    mouse_movements = []
+    start_x, start_y = random.randint(400, 600), random.randint(100, 200)
+    current_x, current_y = start_x, start_y
+    move_count = random.randint(20, 40)
+    move_t = timestamp - random.randint(30000, 60000)
+    for i in range(move_count):
+        move_x = max(0, min(1200, current_x + random.randint(-50, 50)))
+        move_y = max(0, min(800, current_y + random.randint(-30, 30)))
+        current_x, current_y = move_x, move_y
+        move_t += random.randint(50, 300)
+        mouse_movements.append(f"{move_x},{move_y},{move_t}")
 
-    # 构建哈希字符串列表
-    hash_list = []
+    # 2. 模拟鼠标点击
+    clicks = []
+    click_count = random.randint(2, 6)
+    for i in range(click_count):
+        click_x = random.randint(150, 900)
+        click_y = random.randint(200, 600)
+        click_t = timestamp - random.randint(1000, 40000)
+        clicks.append(f"{click_x},{click_y},{click_t}")
 
-    # 遍历排序后的参数，构建格式为 [key=value] 的字符串
-    for key, value in sorted_params.items():
-        # 确保值转换为字符串，与JavaScript行为一致
-        hash_list.append(f"[{key}={str(value)}]")
+    # 3. 模拟页面聚焦时间
+    focus_duration = random.randint(30000, 120000)
+    focus_start = timestamp - focus_duration
+    focus_end = timestamp - random.randint(500, 2000)
+    focus = f"{focus_start},{focus_end}"
 
-    # 添加algorithm值
-    hash_list.append(f"[{algorithm_value}]")
-
-    # 连接所有元素形成最终字符串
-    hash_string = "".join(hash_list)
-
-    # 计算MD5哈希值（注意：Python的hashlib返回bytes，需要转换为十六进制字符串）
-    md5_hash = hashlib.md5(hash_string.encode("utf-8")).hexdigest()
-
-    return md5_hash
+    # 4. 拼接所有行为数据
+    behavior_parts = [
+        f"moves={'|'.join(mouse_movements)}",
+        f"clicks={'|'.join(clicks)}",
+        f"focus={focus}",
+        f"ts={timestamp}",
+        f"r={random.random():.16f}",
+        f"v=1.0",
+    ]
+    
+    behavior_str = '&'.join(behavior_parts)
+    
+    # 5. URL编码
+    encoded_behavior = urllib.parse.quote_plus(behavior_str)
+    
+    return encoded_behavior
