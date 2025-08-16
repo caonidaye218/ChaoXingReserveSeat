@@ -25,9 +25,9 @@ get_current_dayofweek = lambda action: (
 )
 
 # --- 🔥 全局配置（保持原有逻辑与命名，仅做最小改动） ---
-LOGIN_TIME = "21:58:30"  # 脚本将等待到这个时间点才开始登录
-RESERVE_TIME = "22:00:00" # 登录后，将等待到这个时间点才开始抢座
-ENDTIME = "22:02:00"      # 抢座循环将在这个时间点后结束
+LOGIN_TIME = "15:55:30"  # 脚本将等待到这个时间点才开始登录
+RESERVE_TIME = "15:56:00" # 登录后，将等待到这个时间点才开始抢座
+ENDTIME = "15:58:00"      # 抢座循环将在这个时间点后结束
 
 SLEEPTIME = 0.2           # 每次抢座失败后的间隔
 ENABLE_SLIDER = True      # 是否有滑块验证
