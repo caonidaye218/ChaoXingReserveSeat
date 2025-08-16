@@ -4,6 +4,7 @@ import argparse
 import os
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import random
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -32,13 +33,13 @@ MAX_ATTEMPT = 5  # 最大尝试次数
 RESERVE_NEXT_DAY = False  # 预约明天而不是今天的
 
 
-def execute_single_task(username, password, task, action):
-    """执行单个任务"""
+def execute_single_task(username, password, task, action, task_id):
+    """执行单个任务 - 新增的并行执行函数"""
     times = task["time"]
     roomid = task["roomid"]
     seatid = task["seatid"]
     
-    logging.info(f"----------- {username} -- {times} -- {seatid} try -----------")
+    logging.info(f"----------- {username} -- {times} -- {seatid} try (Task {task_id}) -----------")
     
     s = reserve(
         sleep_time=SLEEPTIME,
@@ -47,21 +48,21 @@ def execute_single_task(username, password, task, action):
         reserve_next_day=RESERVE_NEXT_DAY,
     )
     s.get_login_status()
-    login_success = s.login(username, password)
+    login_result = s.login(username, password)
     
-    if not login_success[0]:
-        logging.error(f"Login failed for {username}: {login_success[1]}")
+    if not login_result[0]:
+        logging.error(f"Login failed for {username} (Task {task_id}): {login_result[1]}")
         return False
         
     s.requests.headers.update({"Host": "office.chaoxing.com"})
     success = s.submit(times, roomid, seatid, action)
     
     if success:
-        logging.info(f"✅ {username} - {times} - {seatid} SUCCESS")
-        return True
+        logging.info(f"✅ {username} - {times} - {seatid} SUCCESS (Task {task_id})")
     else:
-        logging.info(f"❌ {username} - {times} - {seatid} FAILED")
-        return False
+        logging.info(f"❌ {username} - {times} - {seatid} FAILED (Task {task_id})")
+    
+    return success
 
 
 def login_and_reserve(users, usernames, passwords, action, success_list=None):
@@ -74,14 +75,13 @@ def login_and_reserve(users, usernames, passwords, action, success_list=None):
     
     current_dayofweek = get_current_dayofweek(action)
     
-    # 🔥 新功能：支持多任务并行处理
-    all_tasks = []  # 存储所有需要执行的任务
-    task_index = 0  # 任务索引，用于追踪成功状态
+    # 🔥 新增：收集所有需要执行的任务
+    all_tasks = []
+    task_index = 0
     
     for index, user in enumerate(users):
-        # 🔥 支持新格式的config文件
+        # 🔥 支持新格式 - 多任务
         if "tasks" in user:
-            # 新格式：包含多个任务
             username = user["username"]
             password = user["password"]
             
@@ -91,19 +91,18 @@ def login_and_reserve(users, usernames, passwords, action, success_list=None):
                     passwords.split(",")[index],
                 )
             
-            # 为每个任务创建独立的执行单元
             for task in user["tasks"]:
                 if current_dayofweek in task["daysofweek"]:
                     all_tasks.append({
                         "username": username,
                         "password": password,
                         "task": task,
-                        "original_index": index,
-                        "task_index": task_index
+                        "task_id": task_index,
+                        "user_index": index
                     })
                     task_index += 1
         else:
-            # 🔥 保持对旧格式的兼容性
+            # 🔥 兼容旧格式 - 单任务
             username, password, times, roomid, seatid, daysofweek = user.values()
             if action:
                 username, password = (
@@ -112,7 +111,7 @@ def login_and_reserve(users, usernames, passwords, action, success_list=None):
                 )
             
             if current_dayofweek in daysofweek:
-                # 将旧格式转换为新格式
+                # 转换为新格式
                 task = {
                     "time": times,
                     "roomid": roomid,
@@ -123,49 +122,52 @@ def login_and_reserve(users, usernames, passwords, action, success_list=None):
                     "username": username,
                     "password": password,
                     "task": task,
-                    "original_index": index,
-                    "task_index": task_index
+                    "task_id": task_index,
+                    "user_index": index
                 })
                 task_index += 1
     
-    # 初始化成功列表
+    # 初始化成功状态列表
     if success_list is None:
-        success_list = [False] * task_index
+        success_list = [False] * len(all_tasks)
+    
+    # 🔥 如果没有任务需要执行
+    if not all_tasks:
+        logging.info("Today not set to reserve")
+        return success_list
     
     # 🔥 并行执行所有任务
-    if all_tasks:
-        # 限制并发数量，避免对服务器造成过大压力
-        max_workers = min(len(all_tasks), 3)
+    max_workers = min(len(all_tasks), 3)  # 最多3个并发
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_task = {}
         
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # 提交所有任务
-            future_to_task = {}
-            for task_info in all_tasks:
-                if not success_list[task_info["task_index"]]:  # 只执行未成功的任务
-                    future = executor.submit(
-                        execute_single_task,
-                        task_info["username"],
-                        task_info["password"],
-                        task_info["task"],
-                        action
-                    )
-                    future_to_task[future] = task_info
-            
-            # 处理完成的任务
-            for future in as_completed(future_to_task):
-                task_info = future_to_task[future]
-                try:
-                    result = future.result()
-                    success_list[task_info["task_index"]] = result
-                    
-                    if result:
-                        logging.info(f"🎉 Task completed successfully: {task_info['username']} - {task_info['task']['time']}")
-                    else:
-                        logging.info(f"💥 Task failed: {task_info['username']} - {task_info['task']['time']}")
-                        
-                except Exception as e:
-                    logging.error(f"Task execution error: {e}")
-                    success_list[task_info["task_index"]] = False
+        # 提交未完成的任务
+        for task_info in all_tasks:
+            if not success_list[task_info["task_id"]]:
+                future = executor.submit(
+                    execute_single_task,
+                    task_info["username"],
+                    task_info["password"],
+                    task_info["task"],
+                    action,
+                    task_info["task_id"]
+                )
+                future_to_task[future] = task_info
+        
+        # 处理完成的任务
+        for future in as_completed(future_to_task):
+            task_info = future_to_task[future]
+            try:
+                result = future.result()
+                success_list[task_info["task_id"]] = result
+                
+                # 添加任务间的随机延迟，避免请求过于密集
+                time.sleep(random.uniform(0.1, 0.3))
+                
+            except Exception as e:
+                logging.error(f"Task execution error for task {task_info['task_id']}: {e}")
+                success_list[task_info["task_id"]] = False
     
     return success_list
 
@@ -180,16 +182,16 @@ def main(users, action=False):
     success_list = None
     current_dayofweek = get_current_dayofweek(action)
     
-    # 🔥 计算今天需要执行的任务总数（支持新格式）
+    # 🔥 计算今天需要执行的任务总数（支持新旧格式）
     today_reservation_num = 0
     for user in users:
         if "tasks" in user:
-            # 新格式
+            # 新格式：多任务
             today_reservation_num += sum(
                 1 for task in user["tasks"] if current_dayofweek in task.get("daysofweek", [])
             )
         else:
-            # 旧格式
+            # 旧格式：单任务
             if current_dayofweek in user.get("daysofweek", []):
                 today_reservation_num += 1
     
@@ -221,7 +223,7 @@ def debug(users, action=False):
     current_dayofweek = get_current_dayofweek(action)
     
     for index, user in enumerate(users):
-        # 🔥 支持新格式的debug模式
+        # 🔥 支持新格式debug
         if "tasks" in user:
             username = user["username"]
             password = user["password"]
@@ -254,7 +256,7 @@ def debug(users, action=False):
                     if suc:
                         return
         else:
-            # 🔥 保持旧格式兼容性
+            # 🔥 保持旧格式兼容
             username, password, times, roomid, seatid, daysofweek = user.values()
             if type(seatid) == str:
                 seatid = [seatid]
