@@ -1,13 +1,11 @@
 import requests
 import time
 import os
-from datetime import datetime, timezone, timedelta
 
 class ChaoxingAutoSign:
     def __init__(self):
-        # 从环境变量获取账号密码，更安全
-        self.username = os.environ.get('USERNAME', '18507485528')
-        self.password = os.environ.get('PASSWORD', 'Zf040505')
+        self.username = os.environ.get('USERNAME', "18507485528")
+        self.password = os.environ.get('PASSWORD', "Zf040505")
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) '
@@ -28,11 +26,6 @@ class ChaoxingAutoSign:
         encrypted = cipher.encrypt(pad(input_text).encode('utf-8'))
         return base64.b64encode(encrypted).decode('utf-8')
 
-    def get_beijing_time(self):
-        """获取准确的北京时间"""
-        beijing_tz = timezone(timedelta(hours=8))
-        return datetime.now(beijing_tz)
-
     def login(self):
         acc = self.encrypt(self.username)
         pwd = self.encrypt(self.password)
@@ -49,270 +42,95 @@ class ChaoxingAutoSign:
             'doubleFactorLogin': 0,
             'independentId': 0,
         }
-        
-        response = self.session.post(login_url, data=login_data)
-        print(f"[DEBUG] 登录响应状态码: {response.status_code}")
-        print(f"[DEBUG] 登录响应内容: {response.text[:200]}...")
-        
-        # 访问座位系统页面
-        seat_response = self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
-        print(f"[DEBUG] 座位系统响应状态码: {seat_response.status_code}")
-        
-        # 检查是否登录成功
-        if "登录" in seat_response.text or "login" in seat_response.text.lower():
-            print("[-] 登录可能失败，尝试重新登录")
-            # 重新登录一次
-            response = self.session.post(login_url, data=login_data)
-            seat_response = self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
-        
+        self.session.post(login_url, data=login_data)
+        self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
         print("[+] 登录成功，进入座位系统")
 
     def get_reserve_list(self):
-        beijing_time = self.get_beijing_time()
-        today = beijing_time.strftime("%Y-%m-%d")
-        print(f"[DEBUG] 当前北京时间日期: {today}")
-        
+        today = time.strftime("%Y-%m-%d", time.localtime(time.time() + 8*3600))
         url = "https://office.chaoxing.com/data/apps/seat/reservelist"
         params = {
             'indexId': 0,
             'pageSize': 100,
             'type': -1
         }
-        
-        # 多次尝试获取预约列表
-        for attempt in range(3):
-            print(f"[DEBUG] 第 {attempt + 1} 次尝试获取预约列表")
-            res = self.session.get(url, params=params)
-            print(f"[DEBUG] 获取预约列表响应状态码: {res.status_code}")
-            print(f"[DEBUG] 响应内容: {res.text[:500]}...")
-            
-            if res.status_code == 200:
-                try:
-                    json_data = res.json()
-                    print(f"[DEBUG] JSON响应: {json_data}")
-                    
-                    # 检查响应格式
-                    if isinstance(json_data, dict):
-                        if "success" in json_data and not json_data["success"]:
-                            print(f"[-] API返回失败: {json_data.get('msg', '未知错误')}")
-                            if attempt < 2:
-                                print("[+] 尝试重新登录...")
-                                self.login()
-                                continue
-                            return []
-                        
-                        if "data" in json_data and "reserveList" in json_data["data"]:
-                            data = json_data["data"]["reserveList"]
-                        elif isinstance(json_data, list):
-                            data = json_data
-                        else:
-                            print(f"[-] 未知的响应格式: {json_data}")
-                            return []
-                    else:
-                        data = json_data if isinstance(json_data, list) else []
-                    
-                    print(f"[DEBUG] 获取到 {len(data)} 条预约记录")
-                    
-                    reserve_today = []
-                    for item in data:
-                        print(f"[DEBUG] 预约记录: {item}")
-                        # 检查多种可能的日期字段
-                        item_date = item.get("today") or item.get("date") or item.get("reserveDate", "")
-                        if item_date == today:
-                            reserve_today.append(item)
-                    
-                    print(f"[DEBUG] 今天的预约记录数量: {len(reserve_today)}")
-                    return reserve_today
-                    
-                except Exception as e:
-                    print(f"[-] 解析预约记录失败: {e}")
-                    print(f"[DEBUG] 原始响应: {res.text}")
-                    if attempt < 2:
-                        continue
-                    return []
-            else:
-                print(f"[-] 获取预约请求失败，状态码：{res.status_code}")
-                if attempt < 2:
-                    time.sleep(2)
-                    continue
-                return []
-        
-        return []
-
-    def get_reserve_detail(self, rid):
-        """获取预约详细信息，包括签到时间窗口"""
-        url = f"https://office.chaoxing.com/data/apps/seat/reserve/info?id={rid}"
-        res = self.session.get(url)
+        res = self.session.get(url, params=params)
         if res.status_code == 200:
             try:
-                data = res.json()
-                print(f"[DEBUG] 预约详情: {data}")
-                return data
+                json_data = res.json()
+                # 修复：检查响应格式，处理登录失效的情况
+                if isinstance(json_data, dict) and "success" in json_data and not json_data["success"]:
+                    print(f"[-] API返回错误: {json_data.get('msg', '未知错误')}")
+                    return []
+                
+                # 修复：安全访问data字段
+                if isinstance(json_data, dict) and "data" in json_data and "reserveList" in json_data["data"]:
+                    data = json_data["data"]["reserveList"]
+                else:
+                    print(f"[-] 响应格式异常: {json_data}")
+                    return []
+                
+                reserve_today = []
+                for item in data:
+                    if item.get("today", "") == today:
+                        reserve_today.append(item)
+                return reserve_today
             except Exception as e:
-                print(f"[-] 获取预约详情失败: {e}")
-                return None
-        return None
+                print(f"[-] 获取预约记录失败: {e}")
+                return []
+        else:
+            print(f"[-] 获取预约请求失败，状态码：{res.status_code}")
+            return []
 
     def sign(self, rid):
-        # 先获取预约详情
-        detail = self.get_reserve_detail(rid)
-        
         sign_url = f"https://office.chaoxing.com/data/apps/seat/sign?id={rid}"
         res = self.session.get(sign_url)
-        print(f"[DEBUG] 签到响应状态码: {res.status_code}")
-        print(f"[DEBUG] 签到响应内容: {res.text}")
-        
         if res.status_code == 200:
             try:
-                result = res.json()
-                if result["success"]:
+                if res.json()["success"]:
                     print(f"[+] 签到成功！预约ID：{rid}")
-                    return True
                 else:
-                    print(f"[-] 签到失败，返回信息：{result}")
-                    return False
+                    print(f"[-] 签到失败，返回信息：{res.json()}")
             except Exception as e:
                 print(f"[-] 签到请求异常: {e}")
-                return False
         else:
             print(f"[-] 签到请求失败，状态码：{res.status_code}")
-            return False
 
-    def check_sign_time(self):
-        """检查当前是否在签到时间窗口内"""
-        beijing_time = self.get_beijing_time()
-        current_time = beijing_time.strftime("%H:%M")
-        
-        # 定义签到时间窗口（预约开始前20分钟内可签到）
-        # 10:00-14:00段：9:40-10:00可签到
-        # 14:00-18:00段：13:40-14:00可签到  
-        # 18:00-22:00段：17:40-18:00可签到
-        sign_windows = [
-            ("09:40", "10:00"),  # 第一个时间段
-            ("13:40", "14:00"),  # 第二个时间段  
-            ("17:40", "18:00")   # 第三个时间段
-        ]
-        
-        print(f"[DEBUG] 当前时间: {current_time}")
-        
-        for start_time, end_time in sign_windows:
-            if start_time <= current_time <= end_time:
-                return True, f"{start_time}-{end_time}"
-        
-        # 如果不在窗口内，显示距离下一个窗口的时间
-        next_window = None
-        for start_time, end_time in sign_windows:
-            if current_time < start_time:
-                next_window = f"{start_time}-{end_time}"
+    def wait_until(self, target_time="11:58:00"):
+        print(f"[+] 等待签到时间 {target_time} 中...")
+        while True:
+            current_time = time.strftime("%H:%M:%S", time.localtime(time.time() + 8*3600))
+            if current_time >= target_time:
+                print(f"[+] 到达签到时间 {target_time}，开始签到")
                 break
-        
-        if next_window:
-            print(f"[INFO] 不在签到时间窗口内，下一个窗口: {next_window}")
-        else:
-            print(f"[INFO] 今天的签到窗口已全部结束")
-        
-        return False, None
-
-    def wait_for_sign_time(self):
-        """等待到签到时间窗口"""
-        beijing_time = self.get_beijing_time()
-        current_time = beijing_time.strftime("%H:%M:%S")
-        
-        # 检查当前时间
-        print(f"[+] 当前北京时间: {current_time}")
-        
-        # 定义今天的签到时间窗口开始时间
-        target_times = ["09:40:00", "13:40:00", "17:40:00"]
-        
-        # 找到下一个签到时间
-        current_hour_min = beijing_time.strftime("%H:%M")
-        next_target = None
-        
-        for target in target_times:
-            target_hour_min = target[:5]  # 取HH:MM部分
-            if current_hour_min < target_hour_min:
-                next_target = target
-                break
-        
-        if next_target:
-            print(f"[+] 等待下一个签到时间窗口开始: {next_target}")
-            print(f"[+] 对应预约时间段: {self.get_reserve_period(next_target)}")
-            
-            while True:
-                beijing_time = self.get_beijing_time()
-                current_time = beijing_time.strftime("%H:%M:%S")
-                
-                if current_time >= next_target:
-                    print(f"[+] 到达签到时间 {next_target}，开始签到")
-                    break
-                
-                # 每30秒检查一次
-                time.sleep(30)
-        else:
-            print("[+] 今天的签到时间已过，直接尝试签到")
-
-    def get_reserve_period(self, sign_time):
-        """根据签到时间获取对应的预约时间段"""
-        time_map = {
-            "09:40:00": "10:00-14:00",
-            "13:40:00": "14:00-18:00", 
-            "17:40:00": "18:00-22:00"
-        }
-        return time_map.get(sign_time, "未知时间段")
-
-    def try_multiple_sign_attempts(self, rid):
-        """尝试多次签到，增加间隔时间"""
-        max_attempts = 5  # 增加尝试次数
-        
-        for attempt in range(1, max_attempts + 1):
-            print(f"[+] 第 {attempt} 次签到尝试")
-            
-            if self.sign(rid):
-                print(f"[+] 第 {attempt} 次尝试签到成功！")
-                return True
-            
-            if attempt < max_attempts:
-                wait_time = 60 if attempt <= 2 else 120  # 前两次等1分钟，后面等2分钟
-                print(f"[-] 第 {attempt} 次尝试失败，等待{wait_time}秒后重试...")
-                time.sleep(wait_time)
-        
-        print(f"[-] {max_attempts} 次尝试都失败了")
-        return False
+            print(f"当前时间 {current_time}，等待中...")
+            time.sleep(10)
 
     def run(self):
-        try:
-            print("[+] 开始自动签到程序")
-            beijing_time = self.get_beijing_time()
-            current_time = beijing_time.strftime("%H:%M:%S")
-            print(f"[+] 当前北京时间: {current_time}")
+        self.login()
+        # 修改签到时间为您需要的时间点
+        beijing_time = time.localtime(time.time() + 8*3600)
+        current_hour = beijing_time.tm_hour
+        
+        # 根据当前时间选择合适的签到时间
+        if current_hour < 10:
+            self.wait_until(target_time="09:40:00")
+        elif current_hour < 14:
+            self.wait_until(target_time="13:40:00")  
+        elif current_hour < 18:
+            self.wait_until(target_time="17:40:00")
+        else:
+            print("[+] 当前时间超过最后签到窗口，直接尝试签到")
             
-            self.login()
-            
-            # 获取预约列表
-            reserves = self.get_reserve_list()
-            if not reserves:
-                print("[-] 今天没有预约记录，无法签到")
-                return
-            
-            target = reserves[0]
-            rid = target["id"]
-            print(f"[+] 找到预约，ID = {rid}")
-            
-            # 检查当前是否在签到时间窗口内
-            is_sign_time, window = self.check_sign_time()
-            
-            if is_sign_time:
-                print(f"[+] 当前在签到时间窗口内 ({window})，立即开始签到")
-                self.try_multiple_sign_attempts(rid)
-            else:
-                # 由于GitHub Actions已经在正确时间触发，直接尝试签到
-                print("[+] 由GitHub Actions在预定时间触发，直接尝试签到")
-                self.try_multiple_sign_attempts(rid)
-            
-        except Exception as e:
-            print(f"[-] 程序运行异常: {e}")
-            import traceback
-            traceback.print_exc()
+        time.sleep(2)
+        reserves = self.get_reserve_list()
+        if not reserves:
+            print("[-] 今天没有预约记录，无法签到")
+            return
+        target = reserves[0]
+        rid = target["id"]
+        print(f"[+] 找到预约，ID = {rid}")
+        self.sign(rid)
 
 if __name__ == "__main__":
     cxa = ChaoxingAutoSign()
