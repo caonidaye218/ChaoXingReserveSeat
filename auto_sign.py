@@ -52,8 +52,19 @@ class ChaoxingAutoSign:
         
         response = self.session.post(login_url, data=login_data)
         print(f"[DEBUG] 登录响应状态码: {response.status_code}")
+        print(f"[DEBUG] 登录响应内容: {response.text[:200]}...")
         
-        self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
+        # 访问座位系统页面
+        seat_response = self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
+        print(f"[DEBUG] 座位系统响应状态码: {seat_response.status_code}")
+        
+        # 检查是否登录成功
+        if "登录" in seat_response.text or "login" in seat_response.text.lower():
+            print("[-] 登录可能失败，尝试重新登录")
+            # 重新登录一次
+            response = self.session.post(login_url, data=login_data)
+            seat_response = self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
+        
         print("[+] 登录成功，进入座位系统")
 
     def get_reserve_list(self):
@@ -67,29 +78,66 @@ class ChaoxingAutoSign:
             'pageSize': 100,
             'type': -1
         }
-        res = self.session.get(url, params=params)
-        print(f"[DEBUG] 获取预约列表响应状态码: {res.status_code}")
         
-        if res.status_code == 200:
-            try:
-                data = res.json()["data"]["reserveList"]
-                print(f"[DEBUG] 获取到 {len(data)} 条预约记录")
-                
-                reserve_today = []
-                for item in data:
-                    print(f"[DEBUG] 预约记录: {item}")
-                    if item.get("today", "") == today:
-                        reserve_today.append(item)
-                
-                print(f"[DEBUG] 今天的预约记录数量: {len(reserve_today)}")
-                return reserve_today
-            except Exception as e:
-                print(f"[-] 获取预约记录失败: {e}")
-                print(f"[DEBUG] 响应内容: {res.text}")
+        # 多次尝试获取预约列表
+        for attempt in range(3):
+            print(f"[DEBUG] 第 {attempt + 1} 次尝试获取预约列表")
+            res = self.session.get(url, params=params)
+            print(f"[DEBUG] 获取预约列表响应状态码: {res.status_code}")
+            print(f"[DEBUG] 响应内容: {res.text[:500]}...")
+            
+            if res.status_code == 200:
+                try:
+                    json_data = res.json()
+                    print(f"[DEBUG] JSON响应: {json_data}")
+                    
+                    # 检查响应格式
+                    if isinstance(json_data, dict):
+                        if "success" in json_data and not json_data["success"]:
+                            print(f"[-] API返回失败: {json_data.get('msg', '未知错误')}")
+                            if attempt < 2:
+                                print("[+] 尝试重新登录...")
+                                self.login()
+                                continue
+                            return []
+                        
+                        if "data" in json_data and "reserveList" in json_data["data"]:
+                            data = json_data["data"]["reserveList"]
+                        elif isinstance(json_data, list):
+                            data = json_data
+                        else:
+                            print(f"[-] 未知的响应格式: {json_data}")
+                            return []
+                    else:
+                        data = json_data if isinstance(json_data, list) else []
+                    
+                    print(f"[DEBUG] 获取到 {len(data)} 条预约记录")
+                    
+                    reserve_today = []
+                    for item in data:
+                        print(f"[DEBUG] 预约记录: {item}")
+                        # 检查多种可能的日期字段
+                        item_date = item.get("today") or item.get("date") or item.get("reserveDate", "")
+                        if item_date == today:
+                            reserve_today.append(item)
+                    
+                    print(f"[DEBUG] 今天的预约记录数量: {len(reserve_today)}")
+                    return reserve_today
+                    
+                except Exception as e:
+                    print(f"[-] 解析预约记录失败: {e}")
+                    print(f"[DEBUG] 原始响应: {res.text}")
+                    if attempt < 2:
+                        continue
+                    return []
+            else:
+                print(f"[-] 获取预约请求失败，状态码：{res.status_code}")
+                if attempt < 2:
+                    time.sleep(2)
+                    continue
                 return []
-        else:
-            print(f"[-] 获取预约请求失败，状态码：{res.status_code}")
-            return []
+        
+        return []
 
     def get_reserve_detail(self, rid):
         """获取预约详细信息，包括签到时间窗口"""
@@ -145,9 +193,23 @@ class ChaoxingAutoSign:
             ("17:40", "18:00")   # 第三个时间段
         ]
         
+        print(f"[DEBUG] 当前时间: {current_time}")
+        
         for start_time, end_time in sign_windows:
             if start_time <= current_time <= end_time:
                 return True, f"{start_time}-{end_time}"
+        
+        # 如果不在窗口内，显示距离下一个窗口的时间
+        next_window = None
+        for start_time, end_time in sign_windows:
+            if current_time < start_time:
+                next_window = f"{start_time}-{end_time}"
+                break
+        
+        if next_window:
+            print(f"[INFO] 不在签到时间窗口内，下一个窗口: {next_window}")
+        else:
+            print(f"[INFO] 今天的签到窗口已全部结束")
         
         return False, None
 
