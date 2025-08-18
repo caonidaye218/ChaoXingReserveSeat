@@ -43,6 +43,7 @@ class ChaoxingAutoSign:
             'independentId': 0,
         }
         self.session.post(login_url, data=login_data)
+        time.sleep(3)
         self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
         print("[+] 登录成功，进入座位系统")
 
@@ -55,46 +56,21 @@ class ChaoxingAutoSign:
             'type': -1
         }
         res = self.session.get(url, params=params)
-        if res.status_code == 200:
-            try:
-                json_data = res.json()
-                # 修复：检查响应格式，处理登录失效的情况
-                if isinstance(json_data, dict) and "success" in json_data and not json_data["success"]:
-                    print(f"[-] API返回错误: {json_data.get('msg', '未知错误')}")
-                    return []
-                
-                # 修复：安全访问data字段
-                if isinstance(json_data, dict) and "data" in json_data and "reserveList" in json_data["data"]:
-                    data = json_data["data"]["reserveList"]
-                else:
-                    print(f"[-] 响应格式异常: {json_data}")
-                    return []
-                
-                reserve_today = []
-                for item in data:
-                    if item.get("today", "") == today:
-                        reserve_today.append(item)
-                return reserve_today
-            except Exception as e:
-                print(f"[-] 获取预约记录失败: {e}")
-                return []
-        else:
-            print(f"[-] 获取预约请求失败，状态码：{res.status_code}")
-            return []
+        json_data = res.json()
+        data = json_data["data"]["reserveList"]
+        reserve_today = []
+        for item in data:
+            if item.get("today", "") == today:
+                reserve_today.append(item)
+        return reserve_today
 
     def sign(self, rid):
         sign_url = f"https://office.chaoxing.com/data/apps/seat/sign?id={rid}"
         res = self.session.get(sign_url)
-        if res.status_code == 200:
-            try:
-                if res.json()["success"]:
-                    print(f"[+] 签到成功！预约ID：{rid}")
-                else:
-                    print(f"[-] 签到失败，返回信息：{res.json()}")
-            except Exception as e:
-                print(f"[-] 签到请求异常: {e}")
+        if res.json()["success"]:
+            print(f"[+] 签到成功！预约ID：{rid}")
         else:
-            print(f"[-] 签到请求失败，状态码：{res.status_code}")
+            print(f"[-] 签到失败")
 
     def wait_until(self, target_time="9:40:00"):
         print(f"[+] 等待签到时间 {target_time} 中...")
@@ -108,25 +84,18 @@ class ChaoxingAutoSign:
 
     def run(self):
         self.login()
-        # 修改签到时间为您需要的时间点
         beijing_time = time.localtime(time.time() + 8*3600)
         current_hour = beijing_time.tm_hour
         
-        # 根据当前时间选择合适的签到时间
         if current_hour < 10:
             self.wait_until(target_time="09:40:00")
         elif current_hour < 14:
             self.wait_until(target_time="13:40:00")  
         elif current_hour < 18:
             self.wait_until(target_time="17:40:00")
-        else:
-            print("[+] 当前时间超过最后签到窗口，直接尝试签到")
-            
+        
         time.sleep(2)
         reserves = self.get_reserve_list()
-        if not reserves:
-            print("[-] 今天没有预约记录，无法签到")
-            return
         target = reserves[0]
         rid = target["id"]
         print(f"[+] 找到预约，ID = {rid}")
