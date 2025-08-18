@@ -1,20 +1,41 @@
 name: auto_Sign
 
+name: auto_Sign
+
 on:
   schedule:
-    - cron: "0 1 * * *"  # 每天UTC时间23:30启动（北京时间9:00）
-  workflow_dispatch:
+    - cron: "40 1 * * *"  # 北京时间9:40 (UTC 1:40)
+    - cron: "45 1 * * *"  # 北京时间9:45 (UTC 1:45)  
+    - cron: "50 1 * * *"  # 北京时间9:50 (UTC 1:50)
+    - cron: "55 1 * * *"  # 北京时间9:55 (UTC 1:55)
+    
+    - cron: "40 5 * * *"  # 北京时间13:40 (UTC 5:40)
+    - cron: "45 5 * * *"  # 北京时间13:45 (UTC 5:45)
+    - cron: "50 5 * * *"  # 北京时间13:50 (UTC 5:50)
+    - cron: "55 5 * * *"  # 北京时间13:55 (UTC 5:55)
+    
+    - cron: "40 9 * * *"  # 北京时间17:40 (UTC 9:40)
+    - cron: "45 9 * * *"  # 北京时间17:45 (UTC 9:45)
+    - cron: "50 9 * * *"  # 北京时间17:50 (UTC 9:50)  
+    - cron: "55 9 * * *"  # 北京时间17:55 (UTC 9:55)
+    
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4  # 使用最新版本
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4  # 使用最新版本
         with:
-          python-version: 3.11
+          python-version: '3.11'
+
+      - name: Set timezone to Asia/Shanghai
+        run: |
+          sudo timedatectl set-timezone Asia/Shanghai
+          date
 
       - name: install dependencies
         run: |
