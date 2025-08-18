@@ -199,8 +199,9 @@ class ChaoxingAutoSign:
         return time_map.get(sign_time, "未知时间段")
 
     def try_multiple_sign_attempts(self, rid):
-        """尝试多次签到"""
-        max_attempts = 3
+        """尝试多次签到，增加间隔时间"""
+        max_attempts = 5  # 增加尝试次数
+        
         for attempt in range(1, max_attempts + 1):
             print(f"[+] 第 {attempt} 次签到尝试")
             
@@ -209,8 +210,9 @@ class ChaoxingAutoSign:
                 return True
             
             if attempt < max_attempts:
-                print(f"[-] 第 {attempt} 次尝试失败，等待30秒后重试...")
-                time.sleep(30)
+                wait_time = 60 if attempt <= 2 else 120  # 前两次等1分钟，后面等2分钟
+                print(f"[-] 第 {attempt} 次尝试失败，等待{wait_time}秒后重试...")
+                time.sleep(wait_time)
         
         print(f"[-] {max_attempts} 次尝试都失败了")
         return False
@@ -218,6 +220,10 @@ class ChaoxingAutoSign:
     def run(self):
         try:
             print("[+] 开始自动签到程序")
+            beijing_time = self.get_beijing_time()
+            current_time = beijing_time.strftime("%H:%M:%S")
+            print(f"[+] 当前北京时间: {current_time}")
+            
             self.login()
             
             # 获取预约列表
@@ -234,12 +240,11 @@ class ChaoxingAutoSign:
             is_sign_time, window = self.check_sign_time()
             
             if is_sign_time:
-                print(f"[+] 当前在签到时间窗口内 ({window})，立即尝试签到")
+                print(f"[+] 当前在签到时间窗口内 ({window})，立即开始签到")
                 self.try_multiple_sign_attempts(rid)
             else:
-                # 等待到下一个签到时间
-                self.wait_for_sign_time()
-                print("[+] 开始签到流程")
+                # 由于GitHub Actions已经在正确时间触发，直接尝试签到
+                print("[+] 由GitHub Actions在预定时间触发，直接尝试签到")
                 self.try_multiple_sign_attempts(rid)
             
         except Exception as e:
