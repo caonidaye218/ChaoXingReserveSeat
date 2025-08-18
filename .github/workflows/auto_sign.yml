@@ -1,53 +1,38 @@
-name: Auto Sign
+name: auto_Sign
 
 on:
   schedule:
     # 第一个签到窗口：9:40-10:00 (预约时段10:00-14:00)
-    - cron: '40 1 * * *'  # 北京时间9:40 (UTC 1:40)
-    - cron: '50 1 * * *'  # 北京时间9:50 (UTC 1:50)
+    - cron: '40 1 * * *'  # 北京时间9:40
     
     # 第二个签到窗口：13:40-14:00 (预约时段14:00-18:00)  
-    - cron: '40 5 * * *'  # 北京时间13:40 (UTC 5:40)
-    - cron: '50 5 * * *'  # 北京时间13:50 (UTC 5:50)
+    - cron: '40 5 * * *'  # 北京时间13:40
     
     # 第三个签到窗口：17:40-18:00 (预约时段18:00-22:00)
-    - cron: '40 9 * * *'  # 北京时间17:40 (UTC 9:40)
-    - cron: '50 9 * * *'  # 北京时间17:50 (UTC 9:50)
+    - cron: '40 9 * * *'  # 北京时间17:40
     
   workflow_dispatch:
 
 jobs:
-  auto-sign:
+  build:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v2
         with:
-          python-version: '3.11'
+          python-version: 3.11
 
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install dependencies
+      - name: install dependencies
         run: |
           python -m pip install --upgrade pip
+          sudo apt-get install build-essential libssl-dev libffi-dev python3-dev -y
           pip install pycryptodome requests
 
-      - name: Run auto sign script
+      - name: run auto sign script
         env:
           USERNAME: ${{ secrets.USERNAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
         run: |
-          echo "开始运行自动签到脚本..."
-          echo "当前UTC时间: $(date -u)"
-          echo "当前本地时间: $(date)"
           python auto_sign.py
