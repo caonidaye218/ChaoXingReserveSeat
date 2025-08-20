@@ -59,16 +59,18 @@ class ChaoxingAutoSign:
         json_data = res.json()
         
         # 处理不同的响应格式
-        if "data" in json_data and "reserveList" in json_data["data"]:
+        if isinstance(json_data, dict) and "data" in json_data and "reserveList" in json_data["data"]:
             data = json_data["data"]["reserveList"]
-        elif "data" in json_data:
+        elif isinstance(json_data, dict) and "data" in json_data:
             data = json_data["data"]
-        else:
+        elif isinstance(json_data, list):
             data = json_data
+        else:
+            data = []
             
         reserve_today = []
         for item in data:
-            if item.get("today", "") == today:
+            if isinstance(item, dict) and item.get("today", "") == today:
                 reserve_today.append(item)
         return reserve_today
 
