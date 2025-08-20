@@ -57,7 +57,15 @@ class ChaoxingAutoSign:
         }
         res = self.session.get(url, params=params)
         json_data = res.json()
-        data = json_data["data"]["reserveList"]
+        
+        # 处理不同的响应格式
+        if "data" in json_data and "reserveList" in json_data["data"]:
+            data = json_data["data"]["reserveList"]
+        elif "data" in json_data:
+            data = json_data["data"]
+        else:
+            data = json_data
+            
         reserve_today = []
         for item in data:
             if item.get("today", "") == today:
