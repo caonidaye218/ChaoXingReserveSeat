@@ -91,7 +91,7 @@ class ChaoxingAutoSign:
         else:
             print(f"[-] 签到请求失败，状态码：{res.status_code}")
 
-    def wait_until(self, target_time="09:40:00"):
+    def wait_until(self, target_time="10:00:00"):
         """等待直到指定时间"""
         print(f"[+] 等待签到时间 {target_time} 中...")
         while True:
@@ -110,7 +110,7 @@ class ChaoxingAutoSign:
         self.login()
         
         # ==================== 签到时间已确认为 09:40 ====================
-        self.wait_until(target_time="09:40:00")
+        self.wait_until(target_time="10:00:00")
         # ==============================================================
 
         time.sleep(2) # 等待2秒，确保网络稳定
