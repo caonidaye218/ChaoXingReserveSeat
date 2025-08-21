@@ -3,7 +3,7 @@ name: Auto Sign
 on:
   schedule:
     # 每天北京时间上午10:00执行签到（UTC时间02:00）
-    - cron: "0 1 * * *"
+    - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
       sign_time:
@@ -14,6 +14,10 @@ on:
         description: '并发线程数'
         required: false
         default: '3'
+      traditional_mode:
+        description: '使用传统模式 (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
   auto-sign:
@@ -33,17 +37,28 @@ jobs:
         python -m pip install --upgrade pip
         sudo apt-get update
         sudo apt-get install build-essential libssl-dev libffi-dev python3-dev -y
-        pip install pycryptodome requests pillow opencv-python-headless ddddocr
+        pip install pycryptodome requests pillow opencv-python-headless ddddocr cryptography
 
-    - name: Run auto sign script
+    - name: Run auto sign script (Smart Mode)
+      if: github.event.inputs.traditional_mode != 'true'
       env:
         USERNAME: ${{ secrets.USERNAME }}
         PASSWORD: ${{ secrets.PASSWORD }}
       run: |
-        python sign.py --action --time "${{ github.event.inputs.sign_time || '10:00:00' }}" --workers "${{ github.event.inputs.max_workers || '3' }}"
+        echo "🔔 运行智能签到模式 - 只签到连续时间段的第一个预约"
+        python auto_sign.py --action --time "${{ github.event.inputs.sign_time || '10:00:00' }}" --workers "${{ github.event.inputs.max_workers || '3' }}"
+
+    - name: Run auto sign script (Traditional Mode)
+      if: github.event.inputs.traditional_mode == 'true'
+      env:
+        USERNAME: ${{ secrets.USERNAME }}
+        PASSWORD: ${{ secrets.PASSWORD }}
+      run: |
+        echo "🔄 运行传统签到模式 - 逐个签到所有预约"
+        python auto_sign.py --action --time "${{ github.event.inputs.sign_time || '10:00:00' }}" --workers "${{ github.event.inputs.max_workers || '3' }}" --traditional
 
     - name: Upload logs (if any)
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: sign-logs
