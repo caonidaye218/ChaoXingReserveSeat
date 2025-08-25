@@ -1,84 +1,39 @@
-name: Auto Sign
+name: auto_sign
 
 on:
   schedule:
-    # 每天北京时间上午10:00执行签到（UTC时间02:00）
-    - cron: "0 2 * * *"
+    - cron: "30 23 * * *"  # 每天UTC时间1:30启动（北京时间7:30）
   workflow_dispatch:
-    inputs:
-      sign_time:
-        description: '签到时间 (HH:MM:SS)'
-        required: false
-        default: '10:00:00'
-        type: string
-      max_workers:
-        description: '并发线程数'
-        required: false
-        default: '3'
-        type: string
-      traditional_mode:
-        description: '使用传统模式'
-        required: false
-        default: false
-        type: boolean
 
 jobs:
-  auto-sign:
+  build:
     runs-on: ubuntu-latest
     
+    # 设置时区为中国标准时间
+    env:
+      TZ: Asia/Shanghai
+      
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v3  # 更新到v3版本
 
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4  # 更新到v4版本
+        with:
+          python-version: '3.11'
 
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          sudo apt-get update
+          sudo apt-get install build-essential libssl-dev libffi-dev python3-dev -y
+          pip install pycryptodome requests
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
-
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pycryptodome requests pillow opencv-python-headless ddddocr cryptography
-
-    - name: Run auto sign script (Smart Mode)
-      if: ${{ !inputs.traditional_mode }}
-      env:
-        USERNAME: ${{ secrets.USERNAME }}
-        PASSWORD: ${{ secrets.PASSWORD }}
-        TZ: 'Asia/Shanghai'
-      run: |
-        echo "🔔 运行智能签到模式 - 只签到连续时间段的第一个预约"
-        python auto_sign.py --action --time "${{ inputs.sign_time || '10:00:00' }}" --workers "${{ inputs.max_workers || '3' }}"
-
-    - name: Run auto sign script (Traditional Mode)
-      if: ${{ inputs.traditional_mode }}
-      env:
-        USERNAME: ${{ secrets.USERNAME }}
-        PASSWORD: ${{ secrets.PASSWORD }}
-        TZ: 'Asia/Shanghai'
-      run: |
-        echo "🔄 运行传统签到模式 - 逐个签到所有预约"
-        python auto_sign.py --action --time "${{ inputs.sign_time || '10:00:00' }}" --workers "${{ inputs.max_workers || '3' }}" --traditional
-
-    - name: Upload logs (if any)
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: sign-logs-${{ github.run_number }}
-        path: |
-          *.log
-        retention-days: 7
-        compression-level: 6
+      - name: run auto sign script
+        env:
+          USERNAMES: ${{ secrets.USERNAMES }}
+          PASSWORDS: ${{ secrets.PASSWORDS }}
+        run: |
+          echo "开始执行自动签到..."
+          echo "当前时间: $(date)"
+          echo "时区: $TZ"
+          python auto_sign.py
