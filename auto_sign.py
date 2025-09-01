@@ -93,7 +93,7 @@ class ChaoxingAutoSign:
         else:
             print(f"[-] 签到请求失败，状态码：{res.status_code}")
 
-    def wait_until(self, target_time="9:55:00"):
+    def wait_until(self, target_time="8:55:00"):
         print(f"[+] 等待签到时间 {target_time} 中...")
         
         # 使用本地时间（已经设置了TZ环境变量）
@@ -116,7 +116,7 @@ class ChaoxingAutoSign:
 
     def run(self):
         self.login()
-        self.wait_until(target_time="9:55:00")
+        self.wait_until(target_time="8:55:00")
         time.sleep(2)
         reserves = self.get_reserve_list()
         if not reserves:
