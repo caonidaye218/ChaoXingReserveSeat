@@ -124,10 +124,11 @@ def pre_login_all_users(users, usernames, passwords, action):
     
     # 并行执行提前登录
     max_workers = min(len(user_credentials), 6)
-            logging.info(f"🔐 Login connection test using {max_workers} concurrent workers for {len(user_credentials)} users")
+    logging.info(f"🔐 Login connection test using {max_workers} concurrent workers for {len(user_credentials)} users")
     
     login_retry_count = 0
     max_login_retries = 3
+    total_users = len(user_credentials)
     
     while login_retry_count < max_login_retries:
         failed_users = []
@@ -427,7 +428,7 @@ def main(users, action=False):
             # 🚀 优化：如果连续失败，检查成功率
             if consecutive_fail_count >= 2:
                 current_rate = (success_rate_monitor['successful_attempts'] / 
-                              max(success_rate_monitor['total_attempts'], 1) * 100)
+                                max(success_rate_monitor['total_attempts'], 1) * 100)
                 if current_rate < 10:  # 成功率低于10%
                     logging.warning(f"⚠️  Low success rate detected ({current_rate:.1f}%), consider adjusting parameters")
         
@@ -450,7 +451,7 @@ def main(users, action=False):
     
     final_success_count = sum(success_list) if success_list else 0
     final_success_rate = (success_rate_monitor['successful_attempts'] / 
-                         max(success_rate_monitor['total_attempts'], 1) * 100)
+                          max(success_rate_monitor['total_attempts'], 1) * 100)
     
     if final_success_count > 0:
         logging.info(f"✅ Final result: {final_success_count}/{today_reservation_num} reservations completed successfully in {total_duration:.2f}s!")
