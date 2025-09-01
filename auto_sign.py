@@ -56,7 +56,7 @@ class ChaoxingAutoSign:
         print("[+] 登录成功，进入座位系统")
 
     def get_reserve_list(self):
-        today = time.strftime("%Y-%m-%d", time.localtime(time.time() + 8*3600))  # 注意北京时间
+        today = time.strftime("%Y-%m-%d", time.localtime())  # 使用本地时间
         url = "https://office.chaoxing.com/data/apps/seat/reservelist"
         params = {
             'indexId': 0,
@@ -95,13 +95,24 @@ class ChaoxingAutoSign:
 
     def wait_until(self, target_time="9:55:00"):
         print(f"[+] 等待签到时间 {target_time} 中...")
+        
+        # 使用本地时间（已经设置了TZ环境变量）
+        current_time = time.strftime("%H:%M:%S", time.localtime())
+        print(f"[+] 当前本地时间: {current_time}")
+        print(f"[+] 目标签到时间: {target_time}")
+        
+        # 如果当前时间已经超过签到时间，直接执行签到
+        if current_time >= target_time:
+            print(f"[+] 当前时间已超过签到时间，立即开始签到")
+            return
+            
         while True:
-            current_time = time.strftime("%H:%M:%S", time.localtime(time.time() + 8*3600))
+            current_time = time.strftime("%H:%M:%S", time.localtime())
             if current_time >= target_time:
                 print(f"[+] 到达签到时间 {target_time}，开始签到")
                 break
             print(f"当前时间 {current_time}，等待中...")
-            time.sleep(10)
+            time.sleep(30)  # 改为30秒检查一次，减少日志输出
 
     def run(self):
         self.login()
