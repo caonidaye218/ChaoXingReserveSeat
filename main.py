@@ -28,11 +28,11 @@ get_current_dayofweek = lambda action: (
 # 🚀 优化后的参数设置
 SLEEPTIME = 0.1  # 从0.2减少到0.1秒，加快响应速度
 ENDTIME = "22:01:00"  # 根据学校的预约座位时间+1min即可
-START_TIME = "10:08:00"  # 程序启动时间，22点准时启动
+START_TIME = "22:00:00"  # 程序启动时间，22点准时启动
 
 ENABLE_SLIDER = True  # 是否有滑块验证
 MAX_ATTEMPT = 3  # 从5减少到3，快速失败重试
-RESERVE_NEXT_DAY = False  # 预约明天而不是今天的
+RESERVE_NEXT_DAY = True  # 预约明天而不是今天的
 MAX_LOOP_ATTEMPTS = 3  # 最多循环尝试3次，如果3次都没有成功预约任何座位则停止
 
 # 🚀 新增成功率监控
