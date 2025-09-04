@@ -74,7 +74,7 @@ class reserve:
     def _get_page_token(self, url, require_value=False):
         response = self.requests.get(url=url, verify=False)
         html = response.content.decode("utf-8")
-        matches = re.findall(r"token = \'(.*?)\'", html)
+        matches = re.findall(r'id="submit_enc"\s+value="(.*?)"', html)
         value_matches = None
         if require_value:
             value_matches = re.findall(r'value="(.*?)"', html)
