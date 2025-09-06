@@ -4,29 +4,16 @@ import os
 
 class ChaoxingAutoSign:
     def __init__(self):
-        # 从环境变量获取用户名和密码
-        usernames = os.getenv('USERNAMES')
-        passwords = os.getenv('PASSWORDS')
-        
-        if not usernames or not passwords:
-            raise ValueError("缺少必需的环境变量 USERNAMES 和 PASSWORDS")
-        
-        # 取第一个账号（用逗号分隔）
-        username_list = usernames.split(',')
-        password_list = passwords.split(',')
-        
-        self.username = username_list[0].strip()
-        self.password = password_list[0].strip()
-        
+        self.username = os.environ.get("USERNAMES")
+        self.password = os.environ.get("PASSWORDS")
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1',
         })
-
+    
     def encrypt(self, input_text):
         import base64
         from Crypto.Cipher import AES
-
         key = "u2oh6Vu^HWe4_AES"
         aeskey = key.encode('utf-8')
         iv = key.encode('utf-8')
@@ -34,11 +21,10 @@ class ChaoxingAutoSign:
         pad = lambda s: s + (AES.block_size - len(s) % AES.block_size) * chr(AES.block_size - len(s) % AES.block_size)
         encrypted = cipher.encrypt(pad(input_text).encode('utf-8'))
         return base64.b64encode(encrypted).decode('utf-8')
-
+    
     def login(self):
         acc = self.encrypt(self.username)
         pwd = self.encrypt(self.password)
-
         login_url = "https://passport2.chaoxing.com/fanyalogin"
         login_data = {
             'fid': '-1',
@@ -54,9 +40,9 @@ class ChaoxingAutoSign:
         self.session.post(login_url, data=login_data)
         self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
         print("[+] 登录成功，进入座位系统")
-
+    
     def get_reserve_list(self):
-        today = time.strftime("%Y-%m-%d", time.localtime())  # 使用本地时间
+        today = time.strftime("%Y-%m-%d", time.localtime(time.time() + 8*3600))  # 注意北京时间
         url = "https://office.chaoxing.com/data/apps/seat/reservelist"
         params = {
             'indexId': 0,
@@ -78,7 +64,7 @@ class ChaoxingAutoSign:
         else:
             print(f"[-] 获取预约请求失败，状态码：{res.status_code}")
             return []
-
+    
     def sign(self, rid):
         sign_url = f"https://office.chaoxing.com/data/apps/seat/sign?id={rid}"
         res = self.session.get(sign_url)
@@ -92,31 +78,20 @@ class ChaoxingAutoSign:
                 print(f"[-] 签到请求异常: {e}")
         else:
             print(f"[-] 签到请求失败，状态码：{res.status_code}")
-
-    def wait_until(self, target_time="8:55:00"):
+    
+    def wait_until(self, target_time="09:40:00"):
         print(f"[+] 等待签到时间 {target_time} 中...")
-        
-        # 使用本地时间（已经设置了TZ环境变量）
-        current_time = time.strftime("%H:%M:%S", time.localtime())
-        print(f"[+] 当前本地时间: {current_time}")
-        print(f"[+] 目标签到时间: {target_time}")
-        
-        # 如果当前时间已经超过签到时间，直接执行签到
-        if current_time >= target_time:
-            print(f"[+] 当前时间已超过签到时间，立即开始签到")
-            return
-            
         while True:
-            current_time = time.strftime("%H:%M:%S", time.localtime())
+            current_time = time.strftime("%H:%M:%S", time.localtime(time.time() + 8*3600))
             if current_time >= target_time:
                 print(f"[+] 到达签到时间 {target_time}，开始签到")
                 break
             print(f"当前时间 {current_time}，等待中...")
-            time.sleep(30)  # 改为30秒检查一次，减少日志输出
-
+            time.sleep(10)
+    
     def run(self):
         self.login()
-        self.wait_until(target_time="8:55:00")
+        self.wait_until(target_time="08:40:00")
         time.sleep(2)
         reserves = self.get_reserve_list()
         if not reserves:
