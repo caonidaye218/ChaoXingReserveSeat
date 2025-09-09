@@ -1,35 +1,37 @@
-name: auto Sign
+name: auto_Sign
 
 on:
   schedule:
-    # 每天北京时间 07:35 执行 (UTC 23:35)
-    - cron: '35 23 * * *'
+    - cron: "30 23 * * *"  # 每天 UTC 23:30 触发（北京/台北时间次日 07:30）
   workflow_dispatch:
 
 jobs:
-  sign:
+  build:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-        
-    - name: Install dependencies
-      run: |
-        pip install requests pycryptodome
-        
-    - name: Set timezone to Asia/Shanghai
-      run: |
-        sudo timedatectl set-timezone Asia/Shanghai
-        
-    - name: Run sign script
-      env:
-        USERNAMES: ${{ secrets.USERNAMES }}
-        PASSWORDS: ${{ secrets.PASSWORDS }}
-      run: |
-        python auto_sign.py
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir pycryptodome requests
+
+      - name: Run auto sign script
+        env:
+          # 这两个从仓库 Settings → Secrets and variables → Actions 里设置
+          USERNAME: ${{ secrets.USERNAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+          # 可选：支持多账号时用换行或逗号分隔
+          # USERNAME_LIST: ${{ secrets.USERNAME_LIST }}
+          # PASSWORD_LIST: ${{ secrets.PASSWORD_LIST }}
+        run: |
+          python auto_sign.py
