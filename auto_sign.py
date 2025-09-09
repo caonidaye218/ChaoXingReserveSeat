@@ -1,19 +1,19 @@
 import requests
 import time
-import os
 
 class ChaoxingAutoSign:
     def __init__(self):
-        self.username = os.environ.get("USERNAMES")
-        self.password = os.environ.get("PASSWORDS")
+        self.username = "15115991827"
+        self.password = "1234567890Lzx"
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1',
         })
-    
+
     def encrypt(self, input_text):
         import base64
         from Crypto.Cipher import AES
+
         key = "u2oh6Vu^HWe4_AES"
         aeskey = key.encode('utf-8')
         iv = key.encode('utf-8')
@@ -21,10 +21,11 @@ class ChaoxingAutoSign:
         pad = lambda s: s + (AES.block_size - len(s) % AES.block_size) * chr(AES.block_size - len(s) % AES.block_size)
         encrypted = cipher.encrypt(pad(input_text).encode('utf-8'))
         return base64.b64encode(encrypted).decode('utf-8')
-    
+
     def login(self):
         acc = self.encrypt(self.username)
         pwd = self.encrypt(self.password)
+
         login_url = "https://passport2.chaoxing.com/fanyalogin"
         login_data = {
             'fid': '-1',
@@ -40,7 +41,7 @@ class ChaoxingAutoSign:
         self.session.post(login_url, data=login_data)
         self.session.get('https://office.chaoxing.com/front/third/apps/seat/index')
         print("[+] 登录成功，进入座位系统")
-    
+
     def get_reserve_list(self):
         today = time.strftime("%Y-%m-%d", time.localtime(time.time() + 8*3600))  # 注意北京时间
         url = "https://office.chaoxing.com/data/apps/seat/reservelist"
@@ -64,7 +65,7 @@ class ChaoxingAutoSign:
         else:
             print(f"[-] 获取预约请求失败，状态码：{res.status_code}")
             return []
-    
+
     def sign(self, rid):
         sign_url = f"https://office.chaoxing.com/data/apps/seat/sign?id={rid}"
         res = self.session.get(sign_url)
@@ -78,7 +79,7 @@ class ChaoxingAutoSign:
                 print(f"[-] 签到请求异常: {e}")
         else:
             print(f"[-] 签到请求失败，状态码：{res.status_code}")
-    
+
     def wait_until(self, target_time="09:40:00"):
         print(f"[+] 等待签到时间 {target_time} 中...")
         while True:
@@ -88,7 +89,7 @@ class ChaoxingAutoSign:
                 break
             print(f"当前时间 {current_time}，等待中...")
             time.sleep(10)
-    
+
     def run(self):
         self.login()
         self.wait_until(target_time="08:40:00")
