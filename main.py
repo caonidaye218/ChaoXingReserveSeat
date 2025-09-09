@@ -26,7 +26,7 @@ get_current_dayofweek = lambda action: (
 
 
 # 🚀 优化后的参数设置
-SLEEPTIME = 0.1  # 从0.2减少到0.1秒，加快响应速度
+SLEEPTIME = 0.0  # 从0.2减少到0.1秒，加快响应速度
 ENDTIME = "22:01:00"  # 根据学校的预约座位时间+1min即可
 START_TIME = "22:00:00"  # 程序启动时间，22点准时启动
 
