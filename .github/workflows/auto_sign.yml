@@ -1,8 +1,8 @@
-name: Chaoxing Auto Sign
+name: auto Sign
 
 on:
   schedule:
-    # 每天北京时间 08:35 执行 (UTC 00:35)
+    # 每天北京时间 07:35 执行 (UTC 23:35)
     - cron: '35 23 * * *'
   workflow_dispatch:
 
@@ -32,4 +32,4 @@ jobs:
         USERNAMES: ${{ secrets.USERNAMES }}
         PASSWORDS: ${{ secrets.PASSWORDS }}
       run: |
-        python chaoxing_sign.py
+        python auto_sign.py
