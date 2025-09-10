@@ -43,7 +43,7 @@ START_TIME = "22:00:00"
 
 ENABLE_SLIDER = True
 MAX_ATTEMPT = 1  # 减少到2次尝试，快速失败
-RESERVE_NEXT_DAY = False
+RESERVE_NEXT_DAY = True
 MAX_LOOP_ATTEMPTS = 2  # 改为 3，只运行三次
 MAX_WORKERS = 1  # 并发线程数
 
@@ -241,7 +241,7 @@ def main(users, action=False):
             remaining_seconds = start_seconds - current_seconds
             
             if remaining_seconds > 1:
-                logging.info(f"Waiting for START_TIME ({START_TIME})... Current time: {current_time}")
+                #logging.info(f"Waiting for START_TIME ({START_TIME})... Current time: {current_time}")
                 time.sleep(1) 
             else:
                 time.sleep(0.001)
