@@ -44,7 +44,7 @@ START_TIME = "19:31:00"
 ENABLE_SLIDER = True
 MAX_ATTEMPT = 1  # 减少到2次尝试，快速失败
 RESERVE_NEXT_DAY = False
-MAX_LOOP_ATTEMPTS = 3  # 改为 3，只运行三次
+MAX_LOOP_ATTEMPTS = 1  # 改为 3，只运行三次
 MAX_WORKERS = 1  # 并发线程数
 
 # 🚀 成功率监控（线程安全）
