@@ -17,7 +17,7 @@
                     "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday" , "Sunday"]
                 },
                 {
-                    "time": ["21:00", "22:00"],
+                    "time": ["22:00", "22:30"],
                     "roomid": "6913",
                     "seatid": ["024"],
                     "daysofweek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday" , "Sunday"]
