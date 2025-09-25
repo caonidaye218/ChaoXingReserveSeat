@@ -7,13 +7,11 @@ import logging
 import datetime
 from urllib3.exceptions import InsecureRequestWarning
 
-
 def get_date(day_offset: int = 0):
     today = datetime.datetime.now().date()
     offset_day = today + datetime.timedelta(days=day_offset)
     tomorrow = offset_day.strftime("%Y-%m-%d")
     return tomorrow
-
 
 class reserve:
     def __init__(
@@ -74,7 +72,12 @@ class reserve:
     def _get_page_token(self, url, require_value=False):
         response = self.requests.get(url=url, verify=False)
         html = response.content.decode("utf-8")
+        # matches = re.findall(r"token = \'(.*?)\'", html)
         matches = re.findall(r'id="submit_enc"\s+value="(.*?)"', html)
+        if not matches:
+            matches = re.findall(r"token\s*=\s*'([^']*)'", html)
+        if not matches:
+            matches = re.findall(r'name="token"\s+value="([^"]*)"', html)
         value_matches = None
         if require_value:
             value_matches = re.findall(r'value="(.*?)"', html)
@@ -91,19 +94,19 @@ class reserve:
         self.requests.get(url=self.login_page, verify=False)
 
     def login(self, username, password):
-        username = AES_Encrypt(username)
-        password = AES_Encrypt(password)
+        username_enc = AES_Encrypt(username)
+        password_enc = AES_Encrypt(password)
         parm = {
             "fid": -1,
-            "uname": username,
-            "password": password,
+            "uname": username_enc,
+            "password": password_enc,
             "refer": "http%3A%2F%2Foffice.chaoxing.com%2Ffront%2Fthird%2Fapps%2Fseat%2Fcode%3Fid%3D4219%26seatNum%3D380",
             "t": True,
         }
         jsons = self.requests.post(url=self.login_url, params=parm, verify=False)
         obj = jsons.json()
         if obj["status"]:
-            logging.info(f"User {username} login successfully")
+            logging.info(f"User {username_enc} login successfully")
             return (True, "")
         else:
             logging.info(
@@ -121,7 +124,6 @@ class reserve:
             print(info)
 
     # solve captcha
-
     def resolve_captcha(self):
         logging.info(f"Start to resolve captcha token")
         captcha_token, bg, tp = self.get_slide_captcha_data()
@@ -231,19 +233,19 @@ class reserve:
         return tl[0]
 
     def submit(self, times, roomid, seatid, action):
-        # 为当前这个任务创建一个局部的尝试次数副本
-        attempts_left = self.max_attempt
+        """优化后的提交方法 - 用于兼容旧版本调用"""
+        # 临时创建验证码池进行快速提交
+        captcha = self.resolve_captcha() if self.enable_slider else ""
+        
         for seat in seatid:
-            suc = False
-            # 在循环条件中使用这个局部计数器
-            while not suc and attempts_left > 0:
+            attempt_count = 0
+            while attempt_count < self.max_attempt:
                 token, value = self._get_page_token(
                     self.url.format(roomid, seat), require_value=True
                 )
                 logging.info(f"Get token: {token}")
-                captcha = self.resolve_captcha() if self.enable_slider else ""
-                logging.info(f"Captcha token {captcha}")
-                suc = self.get_submit(
+                
+                success = self.get_submit(
                     self.submit_url,
                     times=times,
                     token=token,
@@ -253,21 +255,27 @@ class reserve:
                     action=action,
                     value=value,
                 )
-                if suc:
-                    return suc
-                time.sleep(self.sleep_time)
-                # 对局部计数器进行减一操作
-                attempts_left -= 1
-        return suc
+                if success:
+                    return True
+                    
+                attempt_count += 1
+                if attempt_count < self.max_attempt:
+                    time.sleep(self.sleep_time)
+                    
+        return False
 
     def get_submit(
         self, url, times, token, roomid, seatid, captcha="", action=False, value=""
     ):
         delta_day = 1 if self.reserve_next_day else 0
-        # 无论是否在action模式下，都使用当天的日期
-        # 工作流中已设置时区 TZ: Asia/Shanghai，保证日期正确
-        day = datetime.date.today() + datetime.timedelta(days=0 + delta_day)
         
+        if action:
+            # GitHub Action 环境是 UTC 时间，需要转换为北京时间
+            beijing_now = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
+            day = beijing_now.date() + datetime.timedelta(days=delta_day)
+        else:
+            # 本地环境直接使用当地时间
+            day = datetime.date.today() + datetime.timedelta(days=delta_day)
         parm = {
             "roomId": roomid,
             "startTime": times[0],
