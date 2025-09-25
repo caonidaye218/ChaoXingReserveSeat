@@ -25,7 +25,7 @@ get_current_dayofweek = lambda action: (
     else time.strftime("%A", time.localtime())
 )
 
-SLEEPTIME = 0.1  # 减少间隔时间
+SLEEPTIME = 0.01  # 减少间隔时间
 RESERVE_TARGET_TIME = "22:00:00"  # 预约开始的目标时间（北京时间）
 ENABLE_SLIDER = True  # 是否有滑块验证
 MAX_ATTEMPT = 1  # 减少重试次数，专注速度
